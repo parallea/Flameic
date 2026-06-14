@@ -1,0 +1,2 @@
+[system] program=powershell args=["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Write-Output AgentBoardSmokeTest"] node=Some("video-upload") skills=[]
+[stdout] AgentBoardSmokeTest

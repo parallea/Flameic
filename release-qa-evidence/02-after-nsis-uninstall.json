@@ -1,0 +1,195 @@
+﻿{
+    "label":  "02-after-nsis-uninstall",
+    "capturedAt":  "2026-06-10T09:29:21.0800431+05:30",
+    "appDataDirectory":  "C:\\Users\\ayush\\AppData\\Roaming\\AgentBoard",
+    "appDataFiles":  [
+                         {
+                             "relativePath":  "preferences.json",
+                             "length":  49,
+                             "sha256":  "A8D7305E7EA0FE338D37059DBDE3D4AA286EECCC986EDC3D2FA2CB4BB552A789"
+                         },
+                         {
+                             "relativePath":  "recent_sessions.json",
+                             "length":  21,
+                             "sha256":  "655FA99A5156E03D194EEDBB14B5BEB839AAA9A95A9A4349A91BD384082AA37D"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\claude-session-1780996657859.log",
+                             "length":  323,
+                             "sha256":  "6A0CD41506A3AB93BE7835740DB0561F026FE5B86F1036773DE5195182B594A6"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\codex-session-1780997037989.log",
+                             "length":  827,
+                             "sha256":  "D2DF1569728A586B82B371A651CD432F30C368D1B642A6EE169C17DAFB848F56"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\codex-session-1781001813724.log",
+                             "length":  1487,
+                             "sha256":  "C834FD9E921CA3F635D10FB82A9FDC356A750C81E2F566A089E83D1807765870"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\codex-session-1781017484334.log",
+                             "length":  1755,
+                             "sha256":  "CCCBA861F7B46BE29396E0783BAC1A6E8D5EBA32049D2C25CC4A69981D785599"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\powershell-session-1780995378533.log",
+                             "length":  191,
+                             "sha256":  "77881762AABA4659C30BFCC6744040C5DC1BDB33D434AB53A75F74CAC4F51DD3"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\logs\\powershell-session-1781017483796.log",
+                             "length":  1133,
+                             "sha256":  "5864D8EAEFD9834864C557EBEA813D53FBE7F94BE274509DA0BB5A75FB53B24D"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\pipelines.json",
+                             "length":  4663,
+                             "sha256":  "C9636447AEFC30946C60FC2D6DB89C6BD834020BAA0C7601E8CCA4630415DD38"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\skills\\software-engineering\\skill.json",
+                             "length":  397,
+                             "sha256":  "E1F5C56E03F6D01270A6F266C2ADD6A0176AD63A24DDD19036DAD050CD7377FB"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\skills\\software-engineering\\SKILL.md",
+                             "length":  627,
+                             "sha256":  "5AA333816C07B39F2594C5624B6EB5E85DBA814EAA2462FC7EDC610ADD99E770"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\.agentboard\\workspace.json",
+                             "length":  204,
+                             "sha256":  "F8AB678773377F46117DC023D56FECD0EB3060337414DA0DF2B9F03C8B326E6B"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\ghost-cursor.ts",
+                             "length":  369,
+                             "sha256":  "E14C31845DD97D64DA7557060CC01449A2354CCB6AADF6C99E5CDDCDCD447876"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\realtime-vad.ts",
+                             "length":  317,
+                             "sha256":  "65988529DD28F4D2DA857A6CC7106A2567BBF55600B55E7630F7955442F33192"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\review-pr.ts",
+                             "length":  74,
+                             "sha256":  "8F1FE546E9AA33DB587A7754BFCAB8959D1BB150D8707CBFBC8A994D0CA8EA10"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\transcription.ts",
+                             "length":  358,
+                             "sha256":  "800FEF2A0D108527EF2B1123FCCAA25AAD07FD603A7866396BC27F3C06795333"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\video-upload.ts",
+                             "length":  426,
+                             "sha256":  "E43FF301FC4809CB6B2E400F1C5192C8499CE2ADEA09C3604DB259AEFD7FB9A6"
+                         },
+                         {
+                             "relativePath":  "sample-workspace\\src\\voice-output.ts",
+                             "length":  437,
+                             "sha256":  "88929A8E6C65B87F83983678633ED0C203341149946D5409F9E464F8AA063CEB"
+                         },
+                         {
+                             "relativePath":  "workspaces.json",
+                             "length":  694,
+                             "sha256":  "6A374B9C63E5461850EF26E600044AE5B5E755FEA78BDE667D88C7CA236A4646"
+                         }
+                     ],
+    "workspaces":  [
+                       {
+                           "id":  "ws-6407de584f245cd3",
+                           "name":  "sample-workspace",
+                           "path":  "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace",
+                           "exists":  true,
+                           "pipelineSha256":  "C9636447AEFC30946C60FC2D6DB89C6BD834020BAA0C7601E8CCA4630415DD38",
+                           "logs":  [
+                                        {
+                                            "relativePath":  "claude-session-1780996657859.log",
+                                            "length":  323,
+                                            "sha256":  "6A0CD41506A3AB93BE7835740DB0561F026FE5B86F1036773DE5195182B594A6"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1780997037989.log",
+                                            "length":  827,
+                                            "sha256":  "D2DF1569728A586B82B371A651CD432F30C368D1B642A6EE169C17DAFB848F56"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1781001813724.log",
+                                            "length":  1487,
+                                            "sha256":  "C834FD9E921CA3F635D10FB82A9FDC356A750C81E2F566A089E83D1807765870"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1781017484334.log",
+                                            "length":  1755,
+                                            "sha256":  "CCCBA861F7B46BE29396E0783BAC1A6E8D5EBA32049D2C25CC4A69981D785599"
+                                        },
+                                        {
+                                            "relativePath":  "powershell-session-1780995378533.log",
+                                            "length":  191,
+                                            "sha256":  "77881762AABA4659C30BFCC6744040C5DC1BDB33D434AB53A75F74CAC4F51DD3"
+                                        },
+                                        {
+                                            "relativePath":  "powershell-session-1781017483796.log",
+                                            "length":  1133,
+                                            "sha256":  "5864D8EAEFD9834864C557EBEA813D53FBE7F94BE274509DA0BB5A75FB53B24D"
+                                        }
+                                    ]
+                       },
+                       {
+                           "id":  "ws-3e20ac4606584759",
+                           "name":  "New folder (4)",
+                           "path":  "C:\\Users\\ayush\\OneDrive\\Desktop\\New folder (4)",
+                           "exists":  true,
+                           "pipelineSha256":  "28C28DBDA5508DDDAE6D80D5263639794A59C9F80217AEB8EEB82109AD6CF4DC",
+                           "logs":  [
+
+                                    ]
+                       },
+                       {
+                           "id":  "ws-26683dd0b982af7b",
+                           "name":  "sample-workspace",
+                           "path":  "C:\\Users\\ayush\\AppData\\Roaming\\AgentBoard\\sample-workspace",
+                           "exists":  true,
+                           "pipelineSha256":  "C9636447AEFC30946C60FC2D6DB89C6BD834020BAA0C7601E8CCA4630415DD38",
+                           "logs":  [
+                                        {
+                                            "relativePath":  "claude-session-1780996657859.log",
+                                            "length":  323,
+                                            "sha256":  "6A0CD41506A3AB93BE7835740DB0561F026FE5B86F1036773DE5195182B594A6"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1780997037989.log",
+                                            "length":  827,
+                                            "sha256":  "D2DF1569728A586B82B371A651CD432F30C368D1B642A6EE169C17DAFB848F56"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1781001813724.log",
+                                            "length":  1487,
+                                            "sha256":  "C834FD9E921CA3F635D10FB82A9FDC356A750C81E2F566A089E83D1807765870"
+                                        },
+                                        {
+                                            "relativePath":  "codex-session-1781017484334.log",
+                                            "length":  1755,
+                                            "sha256":  "CCCBA861F7B46BE29396E0783BAC1A6E8D5EBA32049D2C25CC4A69981D785599"
+                                        },
+                                        {
+                                            "relativePath":  "powershell-session-1780995378533.log",
+                                            "length":  191,
+                                            "sha256":  "77881762AABA4659C30BFCC6744040C5DC1BDB33D434AB53A75F74CAC4F51DD3"
+                                        },
+                                        {
+                                            "relativePath":  "powershell-session-1781017483796.log",
+                                            "length":  1133,
+                                            "sha256":  "5864D8EAEFD9834864C557EBEA813D53FBE7F94BE274509DA0BB5A75FB53B24D"
+                                        }
+                                    ]
+                       }
+                   ],
+    "installedExecutables":  [
+
+                             ]
+}

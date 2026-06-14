@@ -1,0 +1,14 @@
+{
+  "name": "software-engineering-debugger",
+  "title": "Software Engineering Debugger",
+  "description": "Debugs multi-file software systems",
+  "categories": ["software-engineering", "debugging"],
+  "compatible_agents": ["claude", "codex", "gemini", "aider"],
+  "version": "1.0.0",
+  "source": "local",
+  "permissions": {
+    "filesystem": "read",
+    "shell": false,
+    "network": false
+  }
+}

@@ -1,0 +1,19 @@
+[system] program=C:\Users\ayush\AppData\Roaming\npm\codex.cmd args=["exec", "--skip-git-repo-check", "Reply exactly AgentBoardCodexSmokeTest. Do not inspect, create, edit, or delete files."] node=Some("codex-smoke") skills=[]
+[stderr] OpenAI Codex v0.138.0
+[stderr] --------
+[stderr] workdir: C:\Users\ayush\OneDrive\Desktop\Flameic\sample-workspace
+[stderr] model: gpt-5.5
+[stderr] provider: openai
+[stderr] approval: never
+[stderr] sandbox: read-only
+[stderr] reasoning effort: xhigh
+[stderr] reasoning summaries: none
+[stderr] session id: 019eabb2-20dc-72c3-b8ec-7bb4a29d8c28
+[stderr] --------
+[stderr] user
+[stderr] Reply exactly AgentBoardCodexSmokeTest. Do not inspect, create, edit, or delete files.
+[stderr] codex
+[stderr] AgentBoardCodexSmokeTest
+[stderr] tokens used
+[stdout] AgentBoardCodexSmokeTest
+[stderr] 13,061

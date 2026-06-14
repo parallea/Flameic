@@ -1,0 +1,16 @@
+﻿{
+    "startedAt":  "2026-06-10T09:29:10.3347961+05:30",
+    "msiPath":  "D:\\Flameic-cargo-target\\release\\bundle\\msi\\AgentBoard_0.1.0-1_x64_en-US.msi",
+    "msiSha256":  "C2858637FAA7645F2AD03DB8B8438464489F282528CCD7EB5259FF76E450C8AE",
+    "nsisPath":  "D:\\Flameic-cargo-target\\release\\bundle\\nsis\\AgentBoard_0.1.0-1_x64-setup.exe",
+    "nsisSha256":  "3B01B7DF8677EA4EF485D916C79354FAC78CA91CF588BA199ABA4CCD20511ED8",
+    "phases":  [
+                   "NSIS update install and launch passed",
+                   "NSIS uninstall preserved app data, workspaces, and logs",
+                   "NSIS reinstall and launch passed"
+               ],
+    "result":  "failed",
+    "error":  "This command cannot be run due to the error: The operation was canceled by the user.",
+    "finalNsisRestoreExitCode":  0,
+    "finishedAt":  "2026-06-10T09:31:34.6005466+05:30"
+}

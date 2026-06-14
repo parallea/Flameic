@@ -1,0 +1,2 @@
+[system] program=claude args=["--print", "Reply exactly AgentBoardClaudeSmokeTest. Do not inspect, create, edit, or delete files."] node=Some("claude-smoke") skills=[]
+[stdout] Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access

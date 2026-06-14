@@ -1,0 +1,19 @@
+{
+  "source": "github",
+  "repoFullName": "addyosmani/agent-skills",
+  "repoUrl": "https://github.com/addyosmani/agent-skills",
+  "defaultBranch": "main",
+  "commitSha": "d187883b7d761265309cdcc0f202cc76b4b3fb06",
+  "installedAt": "1781169696",
+  "updatedAt": "1781169696",
+  "starsAtInstall": 53162,
+  "forksAtInstall": 5823,
+  "license": "MIT",
+  "fetchedFiles": [
+    "README.md"
+  ],
+  "trusted": false,
+  "trustState": "untrusted",
+  "warning": "Imported GitHub skill. Remote code was not executed.",
+  "originalSkillJson": null
+}

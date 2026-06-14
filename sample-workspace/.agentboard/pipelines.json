@@ -1,0 +1,162 @@
+{
+  "pipelines": [
+    {
+      "id": "main-pipeline",
+      "name": "Main Pipeline",
+      "nodes": [
+        {
+          "id": "video-upload",
+          "label": "Video Upload",
+          "status": "coded",
+          "files": [
+            {
+              "path": "src/video-upload.ts",
+              "reason": "Upload entrypoint and validation logic for incoming lesson videos",
+              "startLine": 1,
+              "endLine": 80
+            }
+          ],
+          "issues": [
+            "Needs verification against large files and Windows path separators."
+          ],
+          "checks": [
+            {
+              "name": "Upload handler compiles",
+              "status": "unknown",
+              "message": "Sample workspace does not include a build system."
+            }
+          ]
+        },
+        {
+          "id": "transcription",
+          "label": "Transcription",
+          "status": "broken",
+          "files": [
+            {
+              "path": "src/transcription.ts",
+              "reason": "Contains the transcription adapter and failure path",
+              "startLine": 1,
+              "endLine": 70
+            }
+          ],
+          "issues": [
+            "Throws not implemented instead of calling a real transcription provider.",
+            "Uses hardcoded fake transcript data in the fallback path."
+          ],
+          "checks": [
+            {
+              "name": "Provider configured",
+              "status": "fail",
+              "message": "No real provider integration is wired."
+            }
+          ]
+        },
+        {
+          "id": "realtime-vad",
+          "label": "Realtime VAD",
+          "status": "mock",
+          "files": [
+            {
+              "path": "src/realtime-vad.ts",
+              "reason": "Voice activity detection loop currently simulates events",
+              "startLine": 1,
+              "endLine": 60
+            }
+          ],
+          "issues": [
+            "Mock timing data is used instead of real audio frame analysis."
+          ],
+          "checks": [
+            {
+              "name": "No fake VAD frames",
+              "status": "fail",
+              "message": "Mock frames are present."
+            }
+          ]
+        },
+        {
+          "id": "ghost-cursor",
+          "label": "Ghost Cursor",
+          "status": "broken",
+          "files": [
+            {
+              "path": "src/ghost-cursor.ts",
+              "reason": "Cursor replay has disconnected button routing",
+              "startLine": 1,
+              "endLine": 70
+            }
+          ],
+          "issues": [
+            "Play button is disconnected from the cursor timeline.",
+            "A placeholder route is referenced."
+          ],
+          "checks": [
+            {
+              "name": "Play action connected",
+              "status": "fail",
+              "message": "No handler is bound."
+            }
+          ]
+        },
+        {
+          "id": "voice-output",
+          "label": "Voice Output",
+          "status": "partial",
+          "files": [
+            {
+              "path": "src/voice-output.ts",
+              "reason": "Voice output supports buffering but not stream cancellation",
+              "startLine": 1,
+              "endLine": 80
+            }
+          ],
+          "issues": [
+            "Cancellation and device error handling are incomplete."
+          ],
+          "checks": [
+            {
+              "name": "Playback buffer",
+              "status": "pass",
+              "message": "Basic buffering path exists."
+            },
+            {
+              "name": "Cancel playback",
+              "status": "warn",
+              "message": "Cancellation is a TODO."
+            }
+          ]
+        },
+        {
+          "id": "review-pr",
+          "label": "Review/PR",
+          "status": "not_started",
+          "files": [
+            {
+              "path": "src/review-pr.ts",
+              "reason": "Review summary and PR draft generation are not implemented",
+              "startLine": 1,
+              "endLine": 50
+            }
+          ],
+          "issues": [
+            "No review implementation exists yet."
+          ],
+          "checks": [
+            {
+              "name": "PR draft available",
+              "status": "unknown",
+              "message": "Feature has not started."
+            }
+          ]
+        }
+      ],
+      "edges": [
+        ["video-upload", "transcription"],
+        ["transcription", "realtime-vad"],
+        ["realtime-vad", "ghost-cursor"],
+        ["ghost-cursor", "voice-output"],
+        ["voice-output", "review-pr"]
+      ]
+    }
+  ]
+}

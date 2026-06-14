@@ -1,0 +1,19 @@
+{
+  "source": "github",
+  "repoFullName": "mattpocock/skills",
+  "repoUrl": "https://github.com/mattpocock/skills",
+  "defaultBranch": "main",
+  "commitSha": "694fa30311e02c2639942308513555e61ee84a6f",
+  "installedAt": "1781169724",
+  "updatedAt": "1781169724",
+  "starsAtInstall": 124960,
+  "forksAtInstall": 10916,
+  "license": "MIT",
+  "fetchedFiles": [
+    "README.md"
+  ],
+  "trusted": false,
+  "trustState": "untrusted",
+  "warning": "Imported GitHub skill. Remote code was not executed.",
+  "originalSkillJson": null
+}

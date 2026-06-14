@@ -1,0 +1,21 @@
+[system] session-meta={"id":"session-1781001813724","workspacePath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace","workspaceName":"sample-workspace","agent":"codex","prompt":"hey","status":"running","startedAt":"1781001813","finishedAt":null,"logPath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace\\.agentboard\\logs\\codex-session-1781001813724.log","exitCode":null}
+[system] program=C:\Users\ayush\AppData\Roaming\npm\codex.cmd args=["exec", "--skip-git-repo-check", "hey"] node=Some("realtime-vad") skills=[]
+[stderr] OpenAI Codex v0.138.0
+[stderr] --------
+[stderr] workdir: C:\Users\ayush\OneDrive\Desktop\Flameic\sample-workspace
+[stderr] model: gpt-5.5
+[stderr] provider: openai
+[stderr] approval: never
+[stderr] sandbox: read-only
+[stderr] reasoning effort: xhigh
+[stderr] reasoning summaries: none
+[stderr] session id: 019eabfb-0729-70a2-8248-50f58e57eadb
+[stderr] --------
+[stderr] user
+[stderr] hey
+[stderr] codex
+[stderr] Hey. What are we working on?
+[stderr] tokens used
+[stdout] Hey. What are we working on?
+[stderr] 13,043
+[system] session-meta={"id":"session-1781001813724","workspacePath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace","workspaceName":"sample-workspace","agent":"codex","prompt":"hey","status":"completed","startedAt":"1781001813","finishedAt":"1781001828","logPath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace\\.agentboard\\logs\\codex-session-1781001813724.log","exitCode":0}

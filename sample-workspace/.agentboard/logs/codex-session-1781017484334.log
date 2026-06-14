@@ -1,0 +1,22 @@
+[system] session-meta={"id":"session-1781017484334","workspacePath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace","workspaceName":"sample-workspace","agent":"codex","prompt":"Do not edit files. Reply only with AgentBoardCodexSmokeTest.","status":"running","startedAt":"1781017484","finishedAt":null,"logPath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace\\.agentboard\\logs\\codex-session-1781017484334.log","exitCode":null}
+[system] program=C:\Users\ayush\AppData\Roaming\npm\codex.cmd args=["exec", "--skip-git-repo-check", "Do not edit files. Reply only with AgentBoardCodexSmokeTest."] node=Some("video-upload") skills=[]
+[stderr] Reading additional input from stdin...
+[stderr] OpenAI Codex v0.138.0
+[stderr] --------
+[stderr] workdir: C:\Users\ayush\OneDrive\Desktop\Flameic\sample-workspace
+[stderr] model: gpt-5.5
+[stderr] provider: openai
+[stderr] approval: never
+[stderr] sandbox: read-only
+[stderr] reasoning effort: xhigh
+[stderr] reasoning summaries: none
+[stderr] session id: 019eacea-1e5b-73b0-8e7c-9bb1d5328cc6
+[stderr] --------
+[stderr] user
+[stderr] Do not edit files. Reply only with AgentBoardCodexSmokeTest.
+[stderr] codex
+[stderr] AgentBoardCodexSmokeTest
+[stderr] tokens used
+[stdout] AgentBoardCodexSmokeTest
+[stderr] 13,055
+[system] session-meta={"id":"session-1781017484334","workspacePath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace","workspaceName":"sample-workspace","agent":"codex","prompt":"Do not edit files. Reply only with AgentBoardCodexSmokeTest.","status":"completed","startedAt":"1781017484","finishedAt":"1781017498","logPath":"C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\sample-workspace\\.agentboard\\logs\\codex-session-1781017484334.log","exitCode":0}
