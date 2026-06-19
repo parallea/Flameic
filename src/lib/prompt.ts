@@ -31,11 +31,50 @@ function skillCanInject(skill: SkillInfo) {
 function skillPromptText(skill: SkillInfo) {
   const sourceLine =
     skill.manifest.source === 'github' && skill.repoFullName
-      ? `\nSkill source: GitHub import from ${skill.repoFullName}`
-      : '\nSkill source: Local workspace skill';
-  return `## Skill: ${skill.manifest.title}${sourceLine}\n${
+      ? `\nSkill source: GitHub import from ${skill.repoFullName}${
+          skill.sourceCandidatePath ? ` at ${skill.sourceCandidatePath}` : ''
+        }`
+      : `\nSkill source: Local workspace skill at ${skill.path}`;
+  const sourceContentKindLine =
+    skill.manifest.source === 'github' && skill.sourceContentKind
+      ? `\nsourceContentKind: ${skill.sourceContentKind}`
+      : '';
+  return `## Skill: ${skill.manifest.title}\nInstalled skill name: ${skill.name}${sourceLine}${sourceContentKindLine}\n${
     skill.markdown.trim() || skill.description
   }`;
+}
+
+function dedupePromptSkills(skills: SkillInfo[]) {
+  const seen = new Set<string>();
+  const unique: SkillInfo[] = [];
+  const duplicates: string[] = [];
+
+  for (const skill of skills) {
+    const sourceIdentity =
+      skill.manifest.source === 'github'
+        ? `${skill.repoFullName ?? skill.sourceUrl ?? 'unknown'}|${
+            skill.sourceCandidatePath ?? skill.sourceCandidateId ?? ''
+          }`
+        : skill.path;
+    const key = `${skill.name.toLowerCase()}|${skill.manifest.source}|${sourceIdentity.toLowerCase()}`;
+    if (seen.has(key)) {
+      duplicates.push(`${skill.name} (${sourceIdentity})`);
+      continue;
+    }
+    seen.add(key);
+    unique.push(skill);
+  }
+
+  return { unique, duplicates };
+}
+
+function skillPromptSection(skills: SkillInfo[], emptyMessage: string) {
+  const { unique, duplicates } = dedupePromptSkills(skills);
+  const skillText = unique.length ? unique.map(skillPromptText).join('\n\n') : emptyMessage;
+  if (!duplicates.length) return skillText;
+  return `${skillText}\n\nSkill injection warning:\n- Duplicate selected skill sources were not injected twice: ${duplicates.join(
+    ', '
+  )}.`;
 }
 
 export function generateAgentPrompt({
@@ -72,9 +111,10 @@ export function generateAgentPrompt({
     ? node.checks.map((check) => `- [${check.status}] ${check.name}: ${check.message}`).join('\n')
     : '- No checks were listed.';
 
-  const skillText = enabledSkills.length
-    ? enabledSkills.map(skillPromptText).join('\n\n')
-    : 'No local skills were enabled for this task.';
+  const skillText = skillPromptSection(
+    enabledSkills,
+    'No local skills were enabled for this task.'
+  );
 
   const scanText =
     includeRealityScan && scanIssues.length
@@ -169,9 +209,10 @@ export function generateDeploymentPrompt({
         (profile.provider !== 'custom' &&
           skill.manifest.compatible_agents.includes(profile.provider)))
   );
-  const skillText = compatibleSkills.length
-    ? compatibleSkills.map(skillPromptText).join('\n\n')
-    : 'No compatible local skills selected.';
+  const skillText = skillPromptSection(
+    compatibleSkills,
+    'No compatible local skills selected.'
+  );
 
   const targetScope =
     target.targetType === 'workspace'
@@ -237,7 +278,28 @@ ${
       : `Run mode: edit.
 - Inspect the declared target before editing.
 - Implement the concrete user task within scope.
-- You may edit files allowed by the profile and sandbox.`;
+- You may create and edit files inside the declared target scope as allowed by the profile and sandbox.`;
+  const taskInstructions =
+    runMode === 'inspect_only'
+      ? `Inspection context:
+${task.trim() || 'Inspect the target and report its current state.'}
+
+Treat any request to build, create, fix, or implement as behavior to assess and plan. Do not perform it in inspect-only mode.`
+      : `User task:
+${task.trim()}`;
+  const completionReport =
+    runMode === 'inspect_only'
+      ? `When finished, report:
+1. Findings.
+2. Files inspected.
+3. Verification commands and results.
+4. Changes that would require edit mode.
+5. Remaining limitations or risks.`
+      : `When finished, report:
+1. Files changed.
+2. Behavior changed.
+3. Verification commands and results.
+4. Remaining limitations or risks.`;
 
   return `You are deployed by AgentBoard.
 
@@ -260,8 +322,7 @@ Deployment target:
 ${targetScope}
 ${nodeContext}
 
-User task:
-${task.trim() || 'Inspect the target and report its current state without editing.'}
+${taskInstructions}
 
 Enabled compatible skills:
 ${skillText}
@@ -276,9 +337,5 @@ Required behavior:
 - If the task requires a disallowed permission, stop and report the requirement.
 - Run the smallest meaningful verification allowed by the profile and run mode.
 
-When finished, report:
-1. Files changed.
-2. Behavior changed.
-3. Verification commands and results.
-4. Remaining limitations or risks.`;
+${completionReport}`;
 }

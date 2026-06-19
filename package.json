@@ -55,7 +55,10 @@
     "type-check": "tsc --noEmit",
     "self_review": "node scripts/self_review.mjs",
     "test:prompt-preview": "node scripts/prompt_preview_test.mjs",
-    "test:github-marketplace-rate-limit": "node scripts/github_marketplace_rate_limit_test.mjs"
+    "test:run-mode-propagation": "node scripts/run_mode_propagation_test.mjs",
+    "test:environment-blocker": "node scripts/environment_blocker_test.mjs",
+    "test:github-marketplace-rate-limit": "node scripts/github_marketplace_rate_limit_test.mjs",
+    "test:agent-review": "cargo test --manifest-path src-tauri/Cargo.toml agent_review -- --nocapture"
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.15",

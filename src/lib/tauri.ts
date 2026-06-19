@@ -2,6 +2,7 @@ import type {
   AgentAvailability,
   AgentDeployment,
   AgentProfile,
+  AgentReview,
   AppBootstrap,
   ClearSessionHistoryResult,
   DiagnosticsExportRequest,
@@ -12,6 +13,7 @@ import type {
   FileReadResult,
   GitStatus,
   GithubMarketplaceInstallResult,
+  GithubMarketplaceCandidate,
   GithubMarketplacePreview,
   GithubMarketplaceRepo,
   GithubMarketplaceSearchRequest,
@@ -21,6 +23,7 @@ import type {
   GithubRateLimits,
   GithubTokenStatus,
   RealityIssue,
+  ReviewActionResult,
   SessionInfo,
   SkillInfo,
   WorkspaceBundle,
@@ -79,7 +82,14 @@ export const agentboardApi = {
     skills?: string[],
     nodeName?: string,
     useWorktree = false,
-    allowSharedWorkspace = false
+    allowSharedWorkspace = false,
+    metadata?: {
+      model?: string;
+      targetType?: string;
+      targetPath?: string;
+      targetLabel?: string;
+      deploymentId?: string;
+    }
   ) =>
     invokeCommand<SessionInfo>('run_agent', {
       request: {
@@ -93,6 +103,11 @@ export const agentboardApi = {
         skills: skills ?? [],
         useWorktree,
         allowSharedWorkspace,
+        model: metadata?.model,
+        targetType: metadata?.targetType,
+        targetPath: metadata?.targetPath,
+        targetLabel: metadata?.targetLabel,
+        deploymentId: metadata?.deploymentId,
       },
     }),
   runMultiAgentSmokeTest: (workspacePath: string, workspaceName: string) =>
@@ -119,14 +134,27 @@ export const agentboardApi = {
   githubMarketplacePreview: (
     workspacePath: string,
     repoFullName: GithubMarketplaceRepo['fullName'],
+    candidate?: Pick<GithubMarketplaceCandidate, 'id' | 'candidatePath'>,
     forceRefresh = false
   ) =>
     invokeCommand<GithubMarketplacePreview>('github_marketplace_preview', {
-      request: { workspacePath, repoFullName, forceRefresh },
+      request: {
+        workspacePath,
+        repoFullName,
+        candidateId: candidate?.id,
+        candidatePath: candidate?.candidatePath,
+        forceRefresh,
+      },
     }),
   githubMarketplaceInstall: (request: {
     workspacePath: string;
     repoFullName: string;
+    candidateId?: string;
+    candidatePath?: string;
+    previewCommitSha?: string;
+    skillMarkdownPath?: string;
+    skillJsonPath?: string;
+    readmePath?: string;
     installName?: string;
     allowReadmeDraft: boolean;
     duplicateAction: 'cancel' | 'rename' | 'overwrite';
@@ -156,6 +184,24 @@ export const agentboardApi = {
     invokeCommand<ClearSessionHistoryResult>('clear_session_history', { workspacePath }),
   openLogsFolder: (workspacePath: string) =>
     invokeCommand<string>('open_logs_folder', { workspacePath }),
+  getAgentReview: (sessionId: string) =>
+    invokeCommand<AgentReview | null>('get_agent_review', { sessionId }),
+  listAgentReviews: (workspacePath: string) =>
+    invokeCommand<AgentReview[]>('list_agent_reviews', { workspacePath }),
+  acceptAgentReview: (reviewId: string) =>
+    invokeCommand<ReviewActionResult>('accept_agent_review', { reviewId }),
+  revertAgentReview: (reviewId: string) =>
+    invokeCommand<ReviewActionResult>('revert_agent_review', { reviewId }),
+  openReviewFile: (reviewId: string, relativePath: string) =>
+    invokeCommand<string>('open_review_file', { reviewId, relativePath }),
+  revealReviewFile: (reviewId: string, relativePath: string) =>
+    invokeCommand<string>('reveal_review_file', { reviewId, relativePath }),
+  openReviewFolder: (reviewId: string) =>
+    invokeCommand<string>('open_review_folder', { reviewId }),
+  openSkillFolder: (workspacePath: string, skillName: string) =>
+    invokeCommand<string>('open_skill_folder', {
+      request: { workspacePath, skillName },
+    }),
   exportDiagnostics: (request: DiagnosticsExportRequest) =>
     invokeCommand<DiagnosticsExportResult>('export_diagnostics', { request }),
 };

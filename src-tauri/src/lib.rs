@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     env,
     fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -33,6 +33,92 @@ struct SessionControl {
     info: SessionInfo,
     pid: Option<u32>,
     stop_requested: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AgentReview {
+    review_id: String,
+    session_id: String,
+    deployment_id: Option<String>,
+    workspace_path: String,
+    target_path: String,
+    execution_path: String,
+    scope_path: String,
+    scope_kind: String,
+    provider: String,
+    run_mode: String,
+    session_status: String,
+    review_status: String,
+    created_at: String,
+    completed_at: String,
+    raw_log_path: String,
+    result_summary: String,
+    changed_files: Vec<ReviewChangedFile>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReviewChangedFile {
+    relative_path: String,
+    absolute_path: String,
+    change_type: String,
+    old_hash: Option<String>,
+    new_hash: Option<String>,
+    old_size: u64,
+    new_size: u64,
+    diff_preview: Option<String>,
+    binary: bool,
+    large_file: bool,
+    sensitive: bool,
+    can_revert: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReviewFileState {
+    relative_path: String,
+    absolute_path: String,
+    size: u64,
+    hash: Option<String>,
+    modified_at: Option<u128>,
+    binary: bool,
+    large_file: bool,
+    sensitive: bool,
+    snapshot_path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ReviewCapture {
+    review_id: String,
+    session_id: String,
+    deployment_id: Option<String>,
+    workspace_path: String,
+    target_path: String,
+    execution_path: String,
+    scope_path: String,
+    scope_kind: String,
+    provider: String,
+    run_mode: String,
+    created_at: String,
+    raw_log_path: String,
+    files: Vec<ReviewFileState>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewConflict {
+    relative_path: String,
+    reason: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewActionResult {
+    review: AgentReview,
+    affected_files: Vec<String>,
+    conflicts: Vec<ReviewConflict>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -142,6 +228,12 @@ struct SkillInfo {
     repo_full_name: Option<String>,
     #[serde(rename = "sourceUrl")]
     source_url: Option<String>,
+    #[serde(rename = "sourceContentKind")]
+    source_content_kind: Option<String>,
+    #[serde(rename = "sourceCandidateId")]
+    source_candidate_id: Option<String>,
+    #[serde(rename = "sourceCandidatePath")]
+    source_candidate_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -209,6 +301,34 @@ struct GithubMarketplaceRepo {
     latest_commit_sha: Option<String>,
     #[serde(default)]
     preview_cached: bool,
+    #[serde(default)]
+    candidates: Vec<GithubMarketplaceCandidate>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct GithubMarketplaceCandidate {
+    id: String,
+    repo_full_name: String,
+    repo_url: String,
+    default_branch: String,
+    commit_sha: Option<String>,
+    candidate_name: String,
+    candidate_path: String,
+    skill_markdown_path: Option<String>,
+    skill_json_path: Option<String>,
+    readme_path: Option<String>,
+    source_content_kind: String,
+    formal_skill: bool,
+    readme_only: bool,
+    installable: bool,
+    detection_warnings: Vec<String>,
+    nested: bool,
+    detected_files: Vec<String>,
+    installed_skill_name: Option<String>,
+    install_status: String,
+    #[serde(default)]
+    preview_cached: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -237,6 +357,8 @@ struct GithubMarketplaceFile {
 struct GithubMarketplacePreviewRequest {
     workspace_path: String,
     repo_full_name: String,
+    candidate_id: Option<String>,
+    candidate_path: Option<String>,
     #[serde(default)]
     force_refresh: bool,
 }
@@ -245,6 +367,7 @@ struct GithubMarketplacePreviewRequest {
 #[serde(rename_all = "camelCase")]
 struct GithubMarketplacePreview {
     repo: GithubMarketplaceRepo,
+    candidate: GithubMarketplaceCandidate,
     files: Vec<GithubMarketplaceFile>,
     formal_skill: bool,
     readme_only: bool,
@@ -252,6 +375,16 @@ struct GithubMarketplacePreview {
     recommended_name: String,
     warning: Option<String>,
     cached: bool,
+    repo_full_name: String,
+    commit_sha: String,
+    candidate_id: String,
+    candidate_path: String,
+    skill_markdown_path: Option<String>,
+    skill_json_path: Option<String>,
+    readme_path: Option<String>,
+    source_content_kind: String,
+    content_shas: HashMap<String, String>,
+    cached_at: String,
     rate_limit: GithubRateLimit,
 }
 
@@ -260,6 +393,12 @@ struct GithubMarketplacePreview {
 struct GithubMarketplaceInstallRequest {
     workspace_path: String,
     repo_full_name: String,
+    candidate_id: Option<String>,
+    candidate_path: Option<String>,
+    preview_commit_sha: Option<String>,
+    skill_markdown_path: Option<String>,
+    skill_json_path: Option<String>,
+    readme_path: Option<String>,
     install_name: Option<String>,
     allow_readme_draft: bool,
     duplicate_action: String,
@@ -350,6 +489,18 @@ struct GithubSkillSource {
     repo_url: String,
     default_branch: String,
     commit_sha: String,
+    #[serde(default = "default_source_content_kind")]
+    source_content_kind: String,
+    #[serde(default)]
+    candidate_id: Option<String>,
+    #[serde(default)]
+    candidate_path: Option<String>,
+    #[serde(default)]
+    skill_markdown_path: Option<String>,
+    #[serde(default)]
+    skill_json_path: Option<String>,
+    #[serde(default)]
+    readme_path: Option<String>,
     installed_at: String,
     updated_at: String,
     stars_at_install: u64,
@@ -398,7 +549,6 @@ struct GithubLicenseApi {
 
 #[derive(Deserialize)]
 struct GithubTreeApi {
-    sha: String,
     #[serde(default)]
     tree: Vec<GithubTreeItemApi>,
 }
@@ -504,6 +654,30 @@ struct SessionInfo {
     execution_path: String,
     #[serde(default)]
     worktree_path: Option<String>,
+    #[serde(default)]
+    prompt_file_path: Option<String>,
+    #[serde(default = "default_direct_prompt_transport")]
+    prompt_transport: String,
+    #[serde(default)]
+    prompt_character_count: usize,
+    #[serde(default)]
+    prompt_byte_count: usize,
+    #[serde(default)]
+    bootstrap_prompt_character_count: usize,
+    #[serde(default)]
+    selected_skill_character_count: usize,
+    #[serde(default)]
+    environment_blocker: Option<EnvironmentBlocker>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct EnvironmentBlocker {
+    code: String,
+    tool: String,
+    cause: String,
+    suggested_action: String,
+    fallback_options: Vec<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -518,9 +692,11 @@ struct AgentOutputEvent {
 #[serde(rename_all = "camelCase")]
 struct AgentStatusEvent {
     session_id: String,
+    run_mode: String,
     status: String,
     exit_code: Option<i32>,
     message: Option<String>,
+    environment_blocker: Option<EnvironmentBlocker>,
 }
 
 #[derive(Serialize)]
@@ -677,6 +853,16 @@ struct RunAgentRequest {
     use_worktree: bool,
     #[serde(default)]
     allow_shared_workspace: bool,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    target_type: Option<String>,
+    #[serde(default)]
+    target_path: Option<String>,
+    #[serde(default)]
+    target_label: Option<String>,
+    #[serde(default)]
+    deployment_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -704,6 +890,7 @@ struct DeploymentPreflightMessage {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DeploymentPreflightResult {
+    requested_run_mode: String,
     target_exists: bool,
     source_file_count: usize,
     has_source_files: bool,
@@ -724,6 +911,32 @@ type OutputSink = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 type StatusSink = Arc<dyn Fn(AgentStatusEvent) + Send + Sync>;
 
 static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const PROMPT_ARGUMENT_SAFE_CHARACTER_LIMIT: usize = 6_000;
+const PROMPT_ARGUMENT_SAFE_BYTE_LIMIT: usize = 12_000;
+const PROMPT_CONTENT_START: &str = "<!-- AGENTBOARD_PROMPT_START -->";
+const REVIEW_HASH_LIMIT_BYTES: u64 = 16 * 1024 * 1024;
+const REVIEW_LARGE_FILE_BYTES: u64 = 1024 * 1024;
+const REVIEW_SNAPSHOT_LIMIT_BYTES: u64 = 1024 * 1024;
+const REVIEW_DIFF_LIMIT_BYTES: u64 = 256 * 1024;
+const REVIEW_BINARY_SAMPLE_BYTES: usize = 8192;
+
+struct PromptMetrics {
+    character_count: usize,
+    byte_count: usize,
+    selected_skill_count: usize,
+    selected_skill_character_count: usize,
+    has_github_skill: bool,
+    selected_skill_metadata: Vec<String>,
+}
+
+struct PreparedPrompt {
+    prompt_file_path: PathBuf,
+    invocation_prompt: String,
+    transport: String,
+    bootstrap_character_count: usize,
+    script_file_path: Option<PathBuf>,
+    metrics: PromptMetrics,
+}
 
 pub fn run() {
     tauri::Builder::default()
@@ -757,10 +970,18 @@ pub fn run() {
             github_marketplace_uninstall,
             github_marketplace_set_trust,
             github_marketplace_rate_limit,
+            open_skill_folder,
             save_github_token,
             clear_github_token,
             clear_session_history,
             open_logs_folder,
+            get_agent_review,
+            list_agent_reviews,
+            accept_agent_review,
+            revert_agent_review,
+            open_review_file,
+            reveal_review_file,
+            open_review_folder,
             export_diagnostics
         ])
         .run(tauri::generate_context!())
@@ -1221,7 +1442,23 @@ fn run_agent_core(
     if !matches!(request.run_mode.as_str(), "inspect_only" | "edit") {
         return Err(format!("Unsupported run mode: {}", request.run_mode));
     }
-    let (program, args) = agent_invocation(&request.agent, &request.prompt, &request.run_mode)?;
+    validate_prompt_run_mode(&request.prompt, &request.run_mode)?;
+    let prepared_prompt =
+        prepare_prompt(&execution_workspace, &session_id, &request).map_err(|error| {
+            format!(
+                "Could not prepare the AgentBoard prompt file for session {session_id}: {error}"
+            )
+        })?;
+    let (program, args) =
+        if let Some(script_file_path) = prepared_prompt.script_file_path.as_deref() {
+            agent_invocation_from_script(&request.agent, script_file_path, &request.run_mode)?
+        } else {
+            agent_invocation(
+                &request.agent,
+                &prepared_prompt.invocation_prompt,
+                &request.run_mode,
+            )?
+        };
     let resolved_program = resolve_command(&program)
         .ok_or_else(|| format!("Command `{program}` is not available on PATH."))?;
     let logs_dir = workspace.join(".agentboard").join("logs");
@@ -1235,6 +1472,14 @@ fn run_agent_core(
             .map_err(to_error)?,
     ));
     let started_at = now_iso();
+    let review_capture = prepare_agent_review_capture(
+        &request,
+        &workspace,
+        &execution_workspace,
+        &session_id,
+        &started_at,
+        &log_path,
+    )?;
     let mut info = SessionInfo {
         id: session_id.clone(),
         workspace_path: workspace.to_string_lossy().to_string(),
@@ -1252,6 +1497,18 @@ fn run_agent_core(
         exit_code: None,
         execution_path: execution_workspace.to_string_lossy().to_string(),
         worktree_path,
+        prompt_file_path: Some(
+            prepared_prompt
+                .prompt_file_path
+                .to_string_lossy()
+                .to_string(),
+        ),
+        prompt_transport: prepared_prompt.transport.clone(),
+        prompt_character_count: prepared_prompt.metrics.character_count,
+        prompt_byte_count: prepared_prompt.metrics.byte_count,
+        bootstrap_prompt_character_count: prepared_prompt.bootstrap_character_count,
+        selected_skill_character_count: prepared_prompt.metrics.selected_skill_character_count,
+        environment_blocker: None,
     };
     persist_session_metadata(&log_file, &info);
     {
@@ -1294,6 +1551,7 @@ fn run_agent_core(
                 Some(message.clone()),
                 &log_file,
                 &status_sink,
+                review_capture,
             );
             return Err(message);
         }
@@ -1316,17 +1574,37 @@ fn run_agent_core(
     write_log(
         &log_file,
         &format!(
-            "[system] program={} args={:?} run_mode={} node={:?} node_name={:?} skills={:?} execution_path={}",
+            "[system] program={} argument_count={} run_mode={} sandbox={} node={:?} node_name={:?} skills={:?} execution_path={}",
             resolved_program.display(),
-            args,
+            args.len(),
             request.run_mode,
+            provider_run_mode(&request.agent, &request.run_mode).1,
             request.node_id,
             request.node_name,
             request.skills,
             execution_workspace.display()
         ),
     );
+    write_log(
+        &log_file,
+        &format!(
+            "[system] prompt_file={} prompt_characters={} prompt_bytes={} bootstrap_prompt_characters={} selected_skill_count={} selected_skill_characters={} prompt_transport={}",
+            prepared_prompt.prompt_file_path.display(),
+            prepared_prompt.metrics.character_count,
+            prepared_prompt.metrics.byte_count,
+            prepared_prompt.bootstrap_character_count,
+            prepared_prompt.metrics.selected_skill_count,
+            prepared_prompt.metrics.selected_skill_character_count,
+            prepared_prompt.transport
+        ),
+    );
     write_log(&log_file, &format!("[system] {spawn_line}"));
+    if prepared_prompt.transport == "file" {
+        let transport_message =
+            "Prompt was stored in a local prompt file to avoid Windows command-line length limits.";
+        write_log(&log_file, &format!("[system] {transport_message}"));
+        output_sink(&session_id, "system", transport_message);
+    }
     output_sink(&session_id, "system", &spawn_line);
     let mut reader_threads = Vec::new();
     if let Some(stdout) = stdout {
@@ -1376,8 +1654,12 @@ fn run_agent_core(
             ),
             Err(error) => ("failed".to_string(), None, Some(error.to_string())),
         };
-        if agent_for_wait == "claude" {
-            let log_text = fs::read_to_string(&log_path_for_wait).unwrap_or_default();
+        let log_text = fs::read_to_string(&log_path_for_wait).unwrap_or_default();
+        if let Some(blocker) = classify_environment_blocker(&log_text) {
+            status = "blocked_environment".to_string();
+            message = Some(blocker.cause.clone());
+            set_session_environment_blocker(&sessions_for_wait, &session_for_wait, blocker);
+        } else if agent_for_wait == "claude" {
             if is_claude_access_blocked(&log_text) {
                 status = "external_blocked".to_string();
                 message = Some(
@@ -1394,6 +1676,7 @@ fn run_agent_core(
             message,
             &log_for_wait,
             &status_for_wait,
+            review_capture,
         );
     });
     Ok(info)
@@ -1478,6 +1761,11 @@ fn run_multi_agent_smoke_test(
                 skills: Vec::new(),
                 use_worktree: false,
                 allow_shared_workspace: true,
+                model: None,
+                target_type: None,
+                target_path: None,
+                target_label: None,
+                deployment_id: None,
             },
         )?);
     }
@@ -1733,6 +2021,1007 @@ fn open_logs_folder(workspace_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn open_skill_folder(request: GithubMarketplaceSkillRequest) -> Result<String, String> {
+    let workspace = validate_marketplace_workspace(&request.workspace_path)?;
+    let skill_name = validate_safe_skill_name(&request.skill_name)?;
+    let skill_dir = workspace
+        .join(".agentboard")
+        .join("skills")
+        .join(&skill_name);
+    if !skill_dir.is_dir() {
+        return Err("Installed skill folder was not found.".to_string());
+    }
+
+    #[cfg(windows)]
+    Command::new("explorer.exe")
+        .arg(&skill_dir)
+        .spawn()
+        .map_err(to_error)?;
+    #[cfg(target_os = "macos")]
+    Command::new("open")
+        .arg(&skill_dir)
+        .spawn()
+        .map_err(to_error)?;
+    #[cfg(all(unix, not(target_os = "macos")))]
+    Command::new("xdg-open")
+        .arg(&skill_dir)
+        .spawn()
+        .map_err(to_error)?;
+
+    Ok(skill_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_agent_review(session_id: String) -> Result<Option<AgentReview>, String> {
+    find_agent_review(|review| review.session_id == session_id)
+        .map(|result| result.map(|(_, review)| review))
+}
+
+#[tauri::command]
+fn list_agent_reviews(workspace_path: String) -> Result<Vec<AgentReview>, String> {
+    let workspace = PathBuf::from(workspace_path);
+    if !workspace.is_dir() {
+        return Err(format!("Workspace does not exist: {}", workspace.display()));
+    }
+    let reviews_root = review_root(&workspace);
+    if !reviews_root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut reviews = Vec::new();
+    for entry in fs::read_dir(&reviews_root).map_err(to_error)? {
+        let entry = entry.map_err(to_error)?;
+        let path = entry.path().join("review.json");
+        if !path.is_file() {
+            continue;
+        }
+        reviews.push(read_agent_review(&path)?);
+    }
+    reviews.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    Ok(reviews)
+}
+
+#[tauri::command]
+fn accept_agent_review(review_id: String) -> Result<ReviewActionResult, String> {
+    let (path, review) = find_agent_review(|review| review.review_id == review_id)?
+        .ok_or_else(|| format!("Review not found: {review_id}"))?;
+    accept_agent_review_at(&path, review)
+}
+
+fn accept_agent_review_at(
+    path: &Path,
+    mut review: AgentReview,
+) -> Result<ReviewActionResult, String> {
+    review.review_status = "accepted".to_string();
+    write_json_atomic(path, &review)?;
+    Ok(ReviewActionResult {
+        affected_files: review
+            .changed_files
+            .iter()
+            .map(|file| file.relative_path.clone())
+            .collect(),
+        conflicts: Vec::new(),
+        review,
+    })
+}
+
+#[tauri::command]
+fn revert_agent_review(review_id: String) -> Result<ReviewActionResult, String> {
+    let (path, review) = find_agent_review(|review| review.review_id == review_id)?
+        .ok_or_else(|| format!("Review not found: {review_id}"))?;
+    revert_agent_review_at(&path, review)
+}
+
+#[tauri::command]
+fn open_review_file(review_id: String, relative_path: String) -> Result<String, String> {
+    let (_, review) = find_agent_review(|review| review.review_id == review_id)?
+        .ok_or_else(|| format!("Review not found: {review_id}"))?;
+    ensure_review_file_listed(&review, &relative_path)?;
+    let path = safe_review_file_path(&review, &relative_path)?;
+    if !path.is_file() {
+        return Err(format!("Review file does not exist: {}", path.display()));
+    }
+    open_path(&path)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn reveal_review_file(review_id: String, relative_path: String) -> Result<String, String> {
+    let (_, review) = find_agent_review(|review| review.review_id == review_id)?
+        .ok_or_else(|| format!("Review not found: {review_id}"))?;
+    ensure_review_file_listed(&review, &relative_path)?;
+    let path = safe_review_file_path(&review, &relative_path)?;
+    reveal_path(&path)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn open_review_folder(review_id: String) -> Result<String, String> {
+    let (path, _) = find_agent_review(|review| review.review_id == review_id)?
+        .ok_or_else(|| format!("Review not found: {review_id}"))?;
+    let folder = path
+        .parent()
+        .ok_or_else(|| "Review folder is unavailable.".to_string())?;
+    open_path(folder)?;
+    Ok(folder.to_string_lossy().to_string())
+}
+
+fn review_root(workspace: &Path) -> PathBuf {
+    workspace.join(".agentboard").join("reviews")
+}
+
+fn review_dir(workspace: &Path, session_id: &str) -> PathBuf {
+    review_root(workspace).join(session_id)
+}
+
+fn prepare_agent_review_capture(
+    request: &RunAgentRequest,
+    workspace: &Path,
+    execution_workspace: &Path,
+    session_id: &str,
+    created_at: &str,
+    log_path: &Path,
+) -> Result<Option<ReviewCapture>, String> {
+    if request.run_mode != "edit" {
+        return Ok(None);
+    }
+    capture_agent_review_before(
+        workspace,
+        execution_workspace,
+        session_id,
+        request.deployment_id.clone(),
+        request.target_type.as_deref(),
+        request.target_path.as_deref(),
+        &request.agent,
+        created_at,
+        log_path,
+    )
+    .map(Some)
+}
+
+fn capture_agent_review_before(
+    workspace: &Path,
+    execution_workspace: &Path,
+    session_id: &str,
+    deployment_id: Option<String>,
+    target_type: Option<&str>,
+    target_path: Option<&str>,
+    provider: &str,
+    created_at: &str,
+    log_path: &Path,
+) -> Result<ReviewCapture, String> {
+    let execution_workspace = execution_workspace.canonicalize().map_err(to_error)?;
+    let (scope_path, scope_kind) =
+        resolve_review_scope(workspace, &execution_workspace, target_type, target_path)?;
+    if review_path_contains_agentboard(
+        scope_path
+            .strip_prefix(&execution_workspace)
+            .unwrap_or(&scope_path),
+    ) {
+        return Err("Agent review targets cannot be inside .agentboard.".to_string());
+    }
+    let destination = review_dir(workspace, session_id);
+    fs::create_dir_all(&destination).map_err(to_error)?;
+    let snapshot_root = destination.join("before");
+    let files = scan_review_scope(
+        &execution_workspace,
+        &scope_path,
+        &scope_kind,
+        Some(&snapshot_root),
+    )?;
+    let recorded_target_path = target_path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| workspace.to_string_lossy().to_string());
+    let capture = ReviewCapture {
+        review_id: format!("review-{session_id}"),
+        session_id: session_id.to_string(),
+        deployment_id,
+        workspace_path: workspace.to_string_lossy().to_string(),
+        target_path: recorded_target_path,
+        execution_path: execution_workspace.to_string_lossy().to_string(),
+        scope_path: scope_path.to_string_lossy().to_string(),
+        scope_kind,
+        provider: provider.to_string(),
+        run_mode: "edit".to_string(),
+        created_at: created_at.to_string(),
+        raw_log_path: log_path.to_string_lossy().to_string(),
+        files,
+    };
+    write_json_atomic(&destination.join("capture.json"), &capture)?;
+    Ok(capture)
+}
+
+fn resolve_review_scope(
+    workspace: &Path,
+    execution_workspace: &Path,
+    target_type: Option<&str>,
+    target_path: Option<&str>,
+) -> Result<(PathBuf, String), String> {
+    let kind = if target_type == Some("file") {
+        "file"
+    } else {
+        "directory"
+    };
+    let target = target_path.map(str::trim).filter(|value| !value.is_empty());
+    if target_type.is_none() || target_type == Some("workspace") || target.is_none() {
+        return Ok((execution_workspace.to_path_buf(), "directory".to_string()));
+    }
+    let requested = PathBuf::from(target.unwrap_or_default());
+    let candidate = if requested.is_absolute() {
+        let canonical_workspace = workspace.canonicalize().map_err(to_error)?;
+        let canonical_requested = requested.canonicalize().map_err(to_error)?;
+        if path_is_within(&canonical_requested, &canonical_workspace) {
+            let relative = canonical_requested
+                .strip_prefix(&canonical_workspace)
+                .map_err(to_error)?;
+            execution_workspace.join(relative)
+        } else {
+            canonical_requested
+        }
+    } else {
+        execution_workspace.join(requested)
+    };
+    let candidate = candidate.canonicalize().map_err(|error| {
+        format!(
+            "Review target does not exist or cannot be resolved ({}): {error}",
+            candidate.display()
+        )
+    })?;
+    if !path_is_within(&candidate, execution_workspace) {
+        return Err(format!(
+            "Review target is outside the execution workspace: {}",
+            candidate.display()
+        ));
+    }
+    if kind == "file" && !candidate.is_file() {
+        return Err(format!(
+            "Review file target is not a file: {}",
+            candidate.display()
+        ));
+    }
+    if kind == "directory" && !candidate.is_dir() {
+        return Err(format!(
+            "Review directory target is not a directory: {}",
+            candidate.display()
+        ));
+    }
+    Ok((candidate, kind.to_string()))
+}
+
+fn scan_review_scope(
+    execution_workspace: &Path,
+    scope_path: &Path,
+    scope_kind: &str,
+    snapshot_root: Option<&Path>,
+) -> Result<Vec<ReviewFileState>, String> {
+    let mut files = Vec::new();
+    if scope_kind == "file" {
+        if scope_path.is_file() {
+            if let Some(state) = review_file_state(execution_workspace, scope_path, snapshot_root)?
+            {
+                files.push(state);
+            }
+        }
+    } else if scope_path.is_dir() {
+        scan_review_directory(execution_workspace, scope_path, snapshot_root, &mut files)?;
+    }
+    files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(files)
+}
+
+fn scan_review_directory(
+    execution_workspace: &Path,
+    directory: &Path,
+    snapshot_root: Option<&Path>,
+    files: &mut Vec<ReviewFileState>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory).map_err(to_error)? {
+        let entry = entry.map_err(to_error)?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(to_error)?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        let relative = path.strip_prefix(execution_workspace).map_err(to_error)?;
+        if review_path_is_excluded(relative) {
+            continue;
+        }
+        if file_type.is_dir() {
+            scan_review_directory(execution_workspace, &path, snapshot_root, files)?;
+        } else if file_type.is_file() {
+            if let Some(state) = review_file_state(execution_workspace, &path, snapshot_root)? {
+                files.push(state);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn review_file_state(
+    execution_workspace: &Path,
+    path: &Path,
+    snapshot_root: Option<&Path>,
+) -> Result<Option<ReviewFileState>, String> {
+    let relative = path.strip_prefix(execution_workspace).map_err(to_error)?;
+    if review_path_is_excluded(relative) {
+        return Ok(None);
+    }
+    let metadata = fs::metadata(path).map_err(to_error)?;
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+    let size = metadata.len();
+    let relative_path = review_relative_string(relative);
+    let sensitive = review_path_is_sensitive(&relative_path);
+    let binary = review_file_is_binary(path)?;
+    let large_file = size > REVIEW_LARGE_FILE_BYTES;
+    let hash = if size <= REVIEW_HASH_LIMIT_BYTES {
+        Some(review_hash_file(path)?)
+    } else {
+        None
+    };
+    let modified_at = metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+        .map(|value| value.as_nanos());
+    let snapshot_path = if snapshot_root.is_some()
+        && !binary
+        && !sensitive
+        && size <= REVIEW_SNAPSHOT_LIMIT_BYTES
+    {
+        let destination = snapshot_root
+            .unwrap_or_else(|| Path::new(""))
+            .join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(to_error)?;
+        }
+        fs::copy(path, &destination).map_err(to_error)?;
+        Some(destination.to_string_lossy().to_string())
+    } else {
+        None
+    };
+    Ok(Some(ReviewFileState {
+        relative_path,
+        absolute_path: path.to_string_lossy().to_string(),
+        size,
+        hash,
+        modified_at,
+        binary,
+        large_file,
+        sensitive,
+        snapshot_path,
+    }))
+}
+
+fn review_path_is_excluded(path: &Path) -> bool {
+    path.components().any(|component| {
+        let Component::Normal(value) = component else {
+            return false;
+        };
+        matches!(
+            value.to_string_lossy().to_ascii_lowercase().as_str(),
+            ".agentboard"
+                | ".git"
+                | "node_modules"
+                | "dist"
+                | "build"
+                | "target"
+                | ".venv"
+                | "venv"
+                | ".next"
+        )
+    })
+}
+
+fn review_path_contains_agentboard(path: &Path) -> bool {
+    path.components().any(|component| {
+        matches!(
+            component,
+            Component::Normal(value)
+                if value.to_string_lossy().eq_ignore_ascii_case(".agentboard")
+        )
+    })
+}
+
+fn review_relative_string(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn review_path_is_sensitive(relative_path: &str) -> bool {
+    let normalized = relative_path.to_ascii_lowercase();
+    let name = normalized.rsplit('/').next().unwrap_or(&normalized);
+    let extension = Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    name == ".env"
+        || name.starts_with(".env.")
+        || matches!(name, ".npmrc" | ".pypirc" | "id_rsa" | "id_ed25519")
+        || matches!(
+            extension,
+            "key" | "pem" | "p12" | "pfx" | "crt" | "cer" | "jks" | "keystore"
+        )
+        || [
+            "secret",
+            "credential",
+            "password",
+            "passwd",
+            "api-key",
+            "api_key",
+            "apikey",
+            "token",
+            "private-key",
+            "private_key",
+            "access-token",
+            "access_token",
+        ]
+        .iter()
+        .any(|needle| name.contains(needle))
+}
+
+fn review_file_is_binary(path: &Path) -> Result<bool, String> {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if matches!(
+        extension.as_str(),
+        "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "ico"
+            | "pdf"
+            | "zip"
+            | "gz"
+            | "7z"
+            | "rar"
+            | "exe"
+            | "dll"
+            | "pdb"
+            | "wasm"
+            | "mp3"
+            | "mp4"
+            | "mov"
+            | "avi"
+            | "woff"
+            | "woff2"
+            | "ttf"
+            | "otf"
+            | "db"
+            | "sqlite"
+    ) {
+        return Ok(true);
+    }
+    let file = File::open(path).map_err(to_error)?;
+    let mut sample = Vec::new();
+    BufReader::new(file)
+        .take(REVIEW_BINARY_SAMPLE_BYTES as u64)
+        .read_to_end(&mut sample)
+        .map_err(to_error)?;
+    if sample.contains(&0) {
+        return Ok(true);
+    }
+    Ok(std::str::from_utf8(&sample).is_err())
+}
+
+fn review_hash_file(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(to_error)?;
+    let mut hash: u64 = 1469598103934665603;
+    for byte in bytes {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(1099511628211);
+    }
+    Ok(format!("fnv1a64:{hash:016x}"))
+}
+
+fn finalize_agent_review(
+    capture: &ReviewCapture,
+    session_status: &str,
+    completed_at: Option<&str>,
+) -> Result<AgentReview, String> {
+    let execution_workspace = PathBuf::from(&capture.execution_path);
+    let scope_path = PathBuf::from(&capture.scope_path);
+    let after = scan_review_scope(&execution_workspace, &scope_path, &capture.scope_kind, None)?;
+    let before_by_path: BTreeMap<String, ReviewFileState> = capture
+        .files
+        .iter()
+        .cloned()
+        .map(|file| (file.relative_path.clone(), file))
+        .collect();
+    let after_by_path: BTreeMap<String, ReviewFileState> = after
+        .into_iter()
+        .map(|file| (file.relative_path.clone(), file))
+        .collect();
+    let paths: BTreeSet<String> = before_by_path
+        .keys()
+        .chain(after_by_path.keys())
+        .cloned()
+        .collect();
+    let mut changed_files = Vec::new();
+    for relative_path in paths {
+        let before = before_by_path.get(&relative_path);
+        let after = after_by_path.get(&relative_path);
+        let change_type = match (before, after) {
+            (None, Some(_)) => "created",
+            (Some(_), None) => "deleted",
+            (Some(left), Some(right)) if review_file_state_changed(left, right) => "modified",
+            _ => continue,
+        };
+        changed_files.push(build_review_changed_file(
+            &execution_workspace,
+            &relative_path,
+            change_type,
+            before,
+            after,
+        )?);
+    }
+    let created = changed_files
+        .iter()
+        .filter(|file| file.change_type == "created")
+        .count();
+    let modified = changed_files
+        .iter()
+        .filter(|file| file.change_type == "modified")
+        .count();
+    let deleted = changed_files
+        .iter()
+        .filter(|file| file.change_type == "deleted")
+        .count();
+    let result_summary = if changed_files.is_empty() {
+        "No user file changes detected".to_string()
+    } else {
+        format!(
+            "{} user file change{} detected: {created} created, {modified} modified, {deleted} deleted",
+            changed_files.len(),
+            if changed_files.len() == 1 { "" } else { "s" }
+        )
+    };
+    let review = AgentReview {
+        review_id: capture.review_id.clone(),
+        session_id: capture.session_id.clone(),
+        deployment_id: capture.deployment_id.clone(),
+        workspace_path: capture.workspace_path.clone(),
+        target_path: capture.target_path.clone(),
+        execution_path: capture.execution_path.clone(),
+        scope_path: capture.scope_path.clone(),
+        scope_kind: capture.scope_kind.clone(),
+        provider: capture.provider.clone(),
+        run_mode: capture.run_mode.clone(),
+        session_status: session_status.to_string(),
+        review_status: if changed_files.is_empty() {
+            "accepted".to_string()
+        } else {
+            "pending".to_string()
+        },
+        created_at: capture.created_at.clone(),
+        completed_at: completed_at
+            .unwrap_or_else(|| capture.created_at.as_str())
+            .to_string(),
+        raw_log_path: capture.raw_log_path.clone(),
+        result_summary,
+        changed_files,
+    };
+    let path =
+        review_dir(Path::new(&capture.workspace_path), &capture.session_id).join("review.json");
+    write_json_atomic(&path, &review)?;
+    Ok(review)
+}
+
+fn review_file_state_changed(before: &ReviewFileState, after: &ReviewFileState) -> bool {
+    match (&before.hash, &after.hash) {
+        (Some(left), Some(right)) => left != right,
+        _ => before.size != after.size || before.modified_at != after.modified_at,
+    }
+}
+
+fn build_review_changed_file(
+    execution_workspace: &Path,
+    relative_path: &str,
+    change_type: &str,
+    before: Option<&ReviewFileState>,
+    after: Option<&ReviewFileState>,
+) -> Result<ReviewChangedFile, String> {
+    let binary = before.map(|file| file.binary).unwrap_or(false)
+        || after.map(|file| file.binary).unwrap_or(false);
+    let large_file = before.map(|file| file.large_file).unwrap_or(false)
+        || after.map(|file| file.large_file).unwrap_or(false);
+    let sensitive = before.map(|file| file.sensitive).unwrap_or(false)
+        || after.map(|file| file.sensitive).unwrap_or(false);
+    let diff_size_safe = before
+        .map(|file| file.size <= REVIEW_DIFF_LIMIT_BYTES)
+        .unwrap_or(true)
+        && after
+            .map(|file| file.size <= REVIEW_DIFF_LIMIT_BYTES)
+            .unwrap_or(true);
+    let old_text = before
+        .and_then(|file| file.snapshot_path.as_deref())
+        .and_then(|path| fs::read_to_string(path).ok());
+    let new_text = after.and_then(|file| {
+        if file.size <= REVIEW_DIFF_LIMIT_BYTES && !file.binary && !file.sensitive {
+            fs::read_to_string(&file.absolute_path).ok()
+        } else {
+            None
+        }
+    });
+    let diff_preview = if !binary && !large_file && !sensitive && diff_size_safe {
+        match change_type {
+            "created" => new_text
+                .as_deref()
+                .map(|text| unified_diff(relative_path, None, Some(text))),
+            "modified" => match (old_text.as_deref(), new_text.as_deref()) {
+                (Some(old), Some(new)) => Some(unified_diff(relative_path, Some(old), Some(new))),
+                _ => None,
+            },
+            "deleted" => old_text
+                .as_deref()
+                .map(|text| unified_diff(relative_path, Some(text), None)),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let can_revert = match change_type {
+        "created" => after.and_then(|file| file.hash.as_ref()).is_some(),
+        "modified" => {
+            before
+                .and_then(|file| file.snapshot_path.as_ref())
+                .is_some()
+                && after.and_then(|file| file.hash.as_ref()).is_some()
+        }
+        "deleted" => before
+            .and_then(|file| file.snapshot_path.as_ref())
+            .is_some(),
+        _ => false,
+    };
+    Ok(ReviewChangedFile {
+        relative_path: relative_path.to_string(),
+        absolute_path: execution_workspace
+            .join(Path::new(relative_path))
+            .to_string_lossy()
+            .to_string(),
+        change_type: change_type.to_string(),
+        old_hash: before.and_then(|file| file.hash.clone()),
+        new_hash: after.and_then(|file| file.hash.clone()),
+        old_size: before.map(|file| file.size).unwrap_or(0),
+        new_size: after.map(|file| file.size).unwrap_or(0),
+        diff_preview,
+        binary,
+        large_file,
+        sensitive,
+        can_revert,
+    })
+}
+
+fn unified_diff(relative_path: &str, old: Option<&str>, new: Option<&str>) -> String {
+    let old_lines: Vec<&str> = old.unwrap_or("").lines().collect();
+    let new_lines: Vec<&str> = new.unwrap_or("").lines().collect();
+    let mut prefix = 0;
+    while prefix < old_lines.len()
+        && prefix < new_lines.len()
+        && old_lines[prefix] == new_lines[prefix]
+    {
+        prefix += 1;
+    }
+    let mut suffix = 0;
+    while suffix < old_lines.len().saturating_sub(prefix)
+        && suffix < new_lines.len().saturating_sub(prefix)
+        && old_lines[old_lines.len() - 1 - suffix] == new_lines[new_lines.len() - 1 - suffix]
+    {
+        suffix += 1;
+    }
+    let context_start = prefix.saturating_sub(3);
+    let old_change_end = old_lines.len().saturating_sub(suffix);
+    let new_change_end = new_lines.len().saturating_sub(suffix);
+    let old_end = (old_change_end + 3).min(old_lines.len());
+    let new_end = (new_change_end + 3).min(new_lines.len());
+    let old_name = if old.is_some() {
+        format!("a/{relative_path}")
+    } else {
+        "/dev/null".to_string()
+    };
+    let new_name = if new.is_some() {
+        format!("b/{relative_path}")
+    } else {
+        "/dev/null".to_string()
+    };
+    let mut diff = format!(
+        "--- {old_name}\n+++ {new_name}\n@@ -{},{} +{},{} @@\n",
+        context_start + 1,
+        old_end.saturating_sub(context_start),
+        context_start + 1,
+        new_end.saturating_sub(context_start)
+    );
+    for line in &old_lines[context_start..prefix] {
+        diff.push(' ');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    for line in &old_lines[prefix..old_change_end] {
+        diff.push('-');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    for line in &new_lines[prefix..new_change_end] {
+        diff.push('+');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    let common_suffix_start = old_change_end.max(context_start);
+    for line in &old_lines[common_suffix_start..old_end] {
+        diff.push(' ');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+    if diff.chars().count() > 300_000 {
+        let mut truncated: String = diff.chars().take(300_000).collect();
+        truncated.push_str("\n... diff preview truncated ...\n");
+        truncated
+    } else {
+        diff
+    }
+}
+
+fn read_agent_review(path: &Path) -> Result<AgentReview, String> {
+    let text = fs::read_to_string(path).map_err(to_error)?;
+    serde_json::from_str(&text).map_err(|error| format!("Invalid {}: {error}", path.display()))
+}
+
+fn find_agent_review<F>(predicate: F) -> Result<Option<(PathBuf, AgentReview)>, String>
+where
+    F: Fn(&AgentReview) -> bool,
+{
+    let app_data = app_data_dir()?;
+    let workspaces = read_workspaces_file(&app_data)?;
+    for workspace in workspaces.workspaces {
+        let root = review_root(Path::new(&workspace.path));
+        if !root.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(&root).map_err(to_error)? {
+            let path = entry.map_err(to_error)?.path().join("review.json");
+            if !path.is_file() {
+                continue;
+            }
+            let review = read_agent_review(&path)?;
+            if predicate(&review) {
+                return Ok(Some((path, review)));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn revert_agent_review_at(
+    review_path: &Path,
+    mut review: AgentReview,
+) -> Result<ReviewActionResult, String> {
+    let capture_path = review_path
+        .parent()
+        .ok_or_else(|| "Review folder is unavailable.".to_string())?
+        .join("capture.json");
+    let capture_text = fs::read_to_string(&capture_path).map_err(to_error)?;
+    let capture: ReviewCapture = serde_json::from_str(&capture_text)
+        .map_err(|error| format!("Invalid {}: {error}", capture_path.display()))?;
+    let before_by_path: HashMap<String, ReviewFileState> = capture
+        .files
+        .into_iter()
+        .map(|file| (file.relative_path.clone(), file))
+        .collect();
+    let mut affected_files = Vec::new();
+    let mut conflicts = Vec::new();
+    for changed in &review.changed_files {
+        if !changed.can_revert {
+            conflicts.push(ReviewConflict {
+                relative_path: changed.relative_path.clone(),
+                reason: "No safe before snapshot or expected hash is available.".to_string(),
+            });
+            continue;
+        }
+        let path = match safe_review_file_path(&review, &changed.relative_path) {
+            Ok(path) => path,
+            Err(reason) => {
+                conflicts.push(ReviewConflict {
+                    relative_path: changed.relative_path.clone(),
+                    reason,
+                });
+                continue;
+            }
+        };
+        let result = match changed.change_type.as_str() {
+            "created" => revert_created_review_file(&path, changed),
+            "modified" => before_by_path
+                .get(&changed.relative_path)
+                .ok_or_else(|| "Before state is missing.".to_string())
+                .and_then(|before| revert_modified_review_file(&path, changed, before)),
+            "deleted" => before_by_path
+                .get(&changed.relative_path)
+                .ok_or_else(|| "Before state is missing.".to_string())
+                .and_then(|before| revert_deleted_review_file(&path, before)),
+            _ => Err(format!(
+                "Unknown review change type: {}",
+                changed.change_type
+            )),
+        };
+        match result {
+            Ok(()) => affected_files.push(changed.relative_path.clone()),
+            Err(reason) => conflicts.push(ReviewConflict {
+                relative_path: changed.relative_path.clone(),
+                reason,
+            }),
+        }
+    }
+    if conflicts.is_empty() {
+        review.review_status = "reverted".to_string();
+        write_json_atomic(review_path, &review)?;
+    }
+    Ok(ReviewActionResult {
+        review,
+        affected_files,
+        conflicts,
+    })
+}
+
+fn revert_created_review_file(path: &Path, changed: &ReviewChangedFile) -> Result<(), String> {
+    if !path.is_file() {
+        return Err("Created file is missing or is no longer a regular file.".to_string());
+    }
+    ensure_current_review_hash(path, changed.new_hash.as_deref())?;
+    fs::remove_file(path).map_err(to_error)
+}
+
+fn revert_modified_review_file(
+    path: &Path,
+    changed: &ReviewChangedFile,
+    before: &ReviewFileState,
+) -> Result<(), String> {
+    if !path.is_file() {
+        return Err("Modified file is missing or is no longer a regular file.".to_string());
+    }
+    ensure_current_review_hash(path, changed.new_hash.as_deref())?;
+    restore_review_snapshot(path, before)
+}
+
+fn revert_deleted_review_file(path: &Path, before: &ReviewFileState) -> Result<(), String> {
+    if path.exists() {
+        return Err("Deleted path now exists; AgentBoard will not overwrite it.".to_string());
+    }
+    restore_review_snapshot(path, before)
+}
+
+fn restore_review_snapshot(path: &Path, before: &ReviewFileState) -> Result<(), String> {
+    let snapshot = before
+        .snapshot_path
+        .as_deref()
+        .map(PathBuf::from)
+        .ok_or_else(|| "Before snapshot is unavailable.".to_string())?;
+    if !snapshot.is_file() {
+        return Err("Before snapshot is missing.".to_string());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(to_error)?;
+    }
+    fs::copy(snapshot, path).map_err(to_error)?;
+    Ok(())
+}
+
+fn ensure_current_review_hash(path: &Path, expected: Option<&str>) -> Result<(), String> {
+    let expected = expected.ok_or_else(|| "Expected file hash is unavailable.".to_string())?;
+    let size = fs::metadata(path).map_err(to_error)?.len();
+    if size > REVIEW_HASH_LIMIT_BYTES {
+        return Err("Current file is too large to verify safely.".to_string());
+    }
+    let current = review_hash_file(path)?;
+    if current != expected {
+        return Err(
+            "File changed after review generation; current content was preserved.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn ensure_review_file_listed(review: &AgentReview, relative_path: &str) -> Result<(), String> {
+    if review
+        .changed_files
+        .iter()
+        .any(|file| file.relative_path == relative_path)
+    {
+        Ok(())
+    } else {
+        Err("File is not part of this review.".to_string())
+    }
+}
+
+fn safe_review_file_path(review: &AgentReview, relative_path: &str) -> Result<PathBuf, String> {
+    let relative = Path::new(relative_path);
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+        || review_path_contains_agentboard(relative)
+    {
+        return Err("Unsafe review file path.".to_string());
+    }
+    let execution = PathBuf::from(&review.execution_path)
+        .canonicalize()
+        .map_err(to_error)?;
+    let candidate = execution.join(relative);
+    let scope = PathBuf::from(&review.scope_path);
+    let in_scope = if review.scope_kind == "file" {
+        paths_match(&candidate, &scope)
+    } else {
+        path_is_within(&candidate, &scope)
+    };
+    if !path_is_within(&candidate, &execution) || !in_scope {
+        return Err("Review file is outside the recorded target scope.".to_string());
+    }
+    let existing = if candidate.exists() {
+        candidate.canonicalize().map_err(to_error)?
+    } else {
+        nearest_existing_parent(&candidate)?
+    };
+    if !path_is_within(&existing, &execution) {
+        return Err("Review path resolves outside the execution workspace.".to_string());
+    }
+    Ok(candidate)
+}
+
+fn nearest_existing_parent(path: &Path) -> Result<PathBuf, String> {
+    let mut current = path.parent();
+    while let Some(parent) = current {
+        if parent.exists() {
+            return parent.canonicalize().map_err(to_error);
+        }
+        current = parent.parent();
+    }
+    Err("Review path has no existing parent.".to_string())
+}
+
+fn open_path(path: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    Command::new("explorer.exe")
+        .arg(path)
+        .spawn()
+        .map_err(to_error)?;
+    #[cfg(target_os = "macos")]
+    Command::new("open").arg(path).spawn().map_err(to_error)?;
+    #[cfg(all(unix, not(target_os = "macos")))]
+    Command::new("xdg-open")
+        .arg(path)
+        .spawn()
+        .map_err(to_error)?;
+    Ok(())
+}
+
+fn reveal_path(path: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    Command::new("explorer.exe")
+        .arg("/select,")
+        .arg(path)
+        .spawn()
+        .map_err(to_error)?;
+    #[cfg(target_os = "macos")]
+    Command::new("open")
+        .arg("-R")
+        .arg(path)
+        .spawn()
+        .map_err(to_error)?;
+    #[cfg(all(unix, not(target_os = "macos")))]
+    Command::new("xdg-open")
+        .arg(path.parent().unwrap_or(path))
+        .spawn()
+        .map_err(to_error)?;
+    Ok(())
+}
+
+#[tauri::command]
 fn export_diagnostics(
     request: DiagnosticsExportRequest,
 ) -> Result<DiagnosticsExportResult, String> {
@@ -1894,8 +3183,15 @@ fn session_info_from_log(
             }
         }
     }
-    if persisted.is_some() {
-        return persisted;
+    if let Some(mut info) = persisted {
+        restore_prompt_from_file(&mut info);
+        if !session_is_active(&info.status) {
+            if let Some(blocker) = classify_environment_blocker(text) {
+                info.status = "blocked_environment".to_string();
+                info.environment_blocker = Some(blocker);
+            }
+        }
+        return Some(info);
     }
 
     let stem = path.file_stem()?.to_str()?;
@@ -1913,7 +3209,10 @@ fn session_info_from_log(
         .map(|millis| (millis / 1000).to_string())
         .or_else(|| file_modified_seconds(path))
         .unwrap_or_else(now_iso);
-    let status = if agent == "claude" && is_claude_access_blocked(text) {
+    let environment_blocker = classify_environment_blocker(text);
+    let status = if environment_blocker.is_some() {
+        "blocked_environment"
+    } else if agent == "claude" && is_claude_access_blocked(text) {
         "external_blocked"
     } else if legacy_log_failed(text) {
         "failed"
@@ -1939,7 +3238,27 @@ fn session_info_from_log(
         exit_code: None,
         execution_path: workspace.to_string_lossy().to_string(),
         worktree_path: None,
+        prompt_file_path: None,
+        prompt_transport: "argument".to_string(),
+        prompt_character_count: 0,
+        prompt_byte_count: 0,
+        bootstrap_prompt_character_count: 0,
+        selected_skill_character_count: 0,
+        environment_blocker,
     })
+}
+
+fn restore_prompt_from_file(info: &mut SessionInfo) {
+    let Some(prompt_file_path) = info.prompt_file_path.as_deref() else {
+        return;
+    };
+    let Ok(document) = fs::read_to_string(prompt_file_path) else {
+        return;
+    };
+    let Some((_, prompt)) = document.split_once(PROMPT_CONTENT_START) else {
+        return;
+    };
+    info.prompt = prompt.trim_start_matches(['\r', '\n']).to_string();
 }
 
 fn legacy_log_failed(text: &str) -> bool {
@@ -1961,6 +3280,127 @@ fn is_claude_access_blocked(text: &str) -> bool {
         || lower.contains("claude access blocked")
         || lower.contains("claude code is not available with your current plan")
         || (lower.contains("anthropic api key") && lower.contains("enable access"))
+}
+
+fn environment_fallback_options() -> Vec<String> {
+    vec![
+        "Retry after installing the required WinUI tooling.".to_string(),
+        "Build a simpler HTML/CSS/JS desktop prototype instead.".to_string(),
+        "Build a WPF app if the WPF templates are available.".to_string(),
+        "Run an environment audit only.".to_string(),
+    ]
+}
+
+fn environment_blocker(
+    code: &str,
+    tool: &str,
+    cause: &str,
+    suggested_action: &str,
+) -> EnvironmentBlocker {
+    EnvironmentBlocker {
+        code: code.to_string(),
+        tool: tool.to_string(),
+        cause: cause.to_string(),
+        suggested_action: suggested_action.to_string(),
+        fallback_options: environment_fallback_options(),
+    }
+}
+
+fn classify_environment_blocker(text: &str) -> Option<EnvironmentBlocker> {
+    let lower = text.to_ascii_lowercase();
+
+    if (lower.contains("winget") && lower.contains("is not recognized"))
+        || lower.contains("'winget' is not recognized")
+        || lower.contains("winget: command not found")
+    {
+        return Some(environment_blocker(
+            "missing_winget",
+            "WinGet",
+            "The WinGet command is not installed or is not available on PATH.",
+            "Install or repair App Installer/WinGet, then retry the WinUI setup; alternatively use Visual Studio Installer.",
+        ));
+    }
+
+    if lower.contains("no templates found matching")
+        && (lower.contains("'winui'") || lower.contains("\"winui\"") || lower.contains("winui"))
+    {
+        return Some(environment_blocker(
+            "missing_winui_template",
+            "WinUI project template",
+            "Codex tried to create a WinUI app, but the `dotnet new winui` template is not installed.",
+            "Install the Windows App SDK/WinUI C# development workload and verify `dotnet new list winui` before retrying.",
+        ));
+    }
+
+    let dotnet_first_run_or_access = lower.contains("dotnet")
+        && (lower.contains("unauthorizedaccessexception")
+            || lower.contains("access to the path") && lower.contains("is denied")
+            || lower.contains("dotnet_cli_home")
+            || lower.contains("failed to create")
+                && (lower.contains(".dotnet") || lower.contains("nuget"))
+            || lower.contains("first time experience") && lower.contains("failed"));
+    if dotnet_first_run_or_access {
+        return Some(environment_blocker(
+            "dotnet_first_run_access",
+            ".NET SDK",
+            "The .NET CLI could not initialize or write to its required user directories.",
+            "Run a non-mutating .NET environment audit, fix DOTNET_CLI_HOME/user-directory permissions, then retry.",
+        ));
+    }
+
+    if lower.contains("visual studio")
+        && (lower.contains("not found")
+            || lower.contains("could not find")
+            || lower.contains("required workload")
+            || lower.contains("workload") && lower.contains("missing"))
+    {
+        return Some(environment_blocker(
+            "missing_visual_studio_workload",
+            "Visual Studio workload",
+            "Visual Studio or a required Windows App SDK/desktop development workload was not found.",
+            "Open Visual Studio Installer, add the required .NET desktop/Windows App SDK components, and retry.",
+        ));
+    }
+
+    if (lower.contains("workload") || lower.contains("sdk") || lower.contains("template"))
+        && (lower.contains("not installed")
+            || lower.contains("not found")
+            || lower.contains("missing")
+            || lower.contains("could not be found")
+            || lower.contains("no installed"))
+        && (lower.contains("dotnet")
+            || lower.contains("windows app sdk")
+            || lower.contains("winui")
+            || lower.contains("msbuild"))
+    {
+        return Some(environment_blocker(
+            "missing_sdk_workload_template",
+            "Windows development toolchain",
+            "A required SDK, workload, or project template is missing from the local development environment.",
+            "Audit the installed .NET SDKs, Windows SDK, MSBuild, and project templates before retrying.",
+        ));
+    }
+
+    let setup_context = lower.contains("install")
+        || lower.contains("workload")
+        || lower.contains("sdk")
+        || lower.contains("template")
+        || lower.contains("developer mode");
+    let permission_context = lower.contains("access is denied")
+        || lower.contains("permission denied")
+        || lower.contains("requires elevation")
+        || lower.contains("administrator privileges")
+        || lower.contains("sandbox") && lower.contains("denied");
+    if setup_context && permission_context {
+        return Some(environment_blocker(
+            "environment_setup_permission",
+            "Environment setup permissions",
+            "The required development environment setup was blocked by permissions, elevation, or sandbox restrictions.",
+            "Run an environment audit and complete the required installation with appropriate user approval outside the agent sandbox.",
+        ));
+    }
+
+    None
 }
 
 fn clean_windows_output(line: &str) -> String {
@@ -2147,11 +3587,20 @@ fn validate_deployment(deployment: &AgentDeployment) -> Result<(), String> {
             | "failed"
             | "stopped"
             | "external_blocked"
+            | "blocked_environment"
     ) {
         return Err(format!(
             "Unsupported deployment status: {}",
             deployment.status
         ));
+    }
+    if deployment.run_mode == "edit" && deployment.status == "completed_inspection" {
+        return Err(
+            "Edit deployment cannot be stored with completed_inspection status.".to_string(),
+        );
+    }
+    if deployment.run_mode == "inspect_only" && deployment.status == "completed" {
+        return Err("Inspect-only deployment cannot be stored with completed status.".to_string());
     }
     Ok(())
 }
@@ -2264,14 +3713,12 @@ fn deployment_preflight_impl(
     if matches!(request.target_type.as_str(), "workspace" | "folder") && !has_source_files {
         warnings.push(preflight_message(
             "no_source_files",
-            "This target has no source files. Deploying an agent may do nothing.",
+            if request.run_mode == "edit" {
+                "This target has no source files. Edit mode may create files inside the declared target scope."
+            } else {
+                "This target has no source files. Inspect-only may have little to report."
+            },
         ));
-        if request.run_mode == "edit" {
-            blockers.push(preflight_message(
-                "empty_target_requires_inspection",
-                "An empty target cannot start in edit mode. Choose Inspect target only to continue.",
-            ));
-        }
     }
     if request.run_mode == "edit" && request.task.trim().is_empty() {
         blockers.push(preflight_message(
@@ -2282,7 +3729,13 @@ fn deployment_preflight_impl(
     if request.run_mode == "edit" && !request.write_files_permission {
         blockers.push(preflight_message(
             "write_permission_required",
-            "Edit mode requires an agent profile with Write files enabled.",
+            "Edit mode cannot run because the selected agent profile does not allow Write files.",
+        ));
+    }
+    if request.run_mode == "inspect_only" && task_requires_edit_mode(&request.task) {
+        warnings.push(preflight_message(
+            "edit_task_in_inspect_mode",
+            "Build tasks require edit mode. Inspect-only will only report findings.",
         ));
     }
 
@@ -2298,14 +3751,15 @@ fn deployment_preflight_impl(
         ));
     }
 
-    let installed_skills: HashSet<String> = if workspace.is_dir() {
+    let installed_skill_list = if workspace.is_dir() {
         load_skills(&workspace)
-            .into_iter()
-            .map(|skill| skill.name)
-            .collect()
     } else {
-        HashSet::new()
+        Vec::new()
     };
+    let installed_skills: HashSet<String> = installed_skill_list
+        .iter()
+        .map(|skill| skill.name.clone())
+        .collect();
     let missing_skills: Vec<String> = request
         .selected_skills
         .iter()
@@ -2320,6 +3774,25 @@ fn deployment_preflight_impl(
                 missing_skills.join(", ")
             ),
         ));
+    }
+
+    if windows_app_task(&request.task) {
+        let winui_skill_selected =
+            selected_winui_skill(&request.selected_skills, &installed_skill_list);
+        let readiness = inspect_windows_app_readiness(&workspace, winui_skill_selected);
+        for warning in readiness.warnings {
+            warnings.push(warning);
+        }
+        if request.run_mode == "edit" && winui_skill_selected && !readiness.winui_template_available
+        {
+            blockers.push(preflight_message(
+                "winui_template_required",
+                format!(
+                    "Edit mode cannot run with the selected WinUI skill because the WinUI project template is unavailable. {}",
+                    windows_app_fallback_guidance()
+                ),
+            ));
+        }
     }
 
     let (log_writable, log_error) = check_log_folder_writable(&workspace);
@@ -2364,6 +3837,7 @@ fn deployment_preflight_impl(
     }
 
     Ok(DeploymentPreflightResult {
+        requested_run_mode: request.run_mode,
         target_exists,
         source_file_count,
         has_source_files,
@@ -2389,6 +3863,195 @@ fn preflight_message(
         code: code.into(),
         message: message.into(),
     }
+}
+
+fn task_requires_edit_mode(task: &str) -> bool {
+    task.split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .any(|word| {
+            matches!(
+                word.to_ascii_lowercase().as_str(),
+                "build"
+                    | "create"
+                    | "fix"
+                    | "implement"
+                    | "generate"
+                    | "add"
+                    | "change"
+                    | "update"
+                    | "write"
+                    | "develop"
+                    | "refactor"
+            )
+        })
+}
+
+struct WindowsAppReadiness {
+    winui_template_available: bool,
+    warnings: Vec<DeploymentPreflightMessage>,
+}
+
+fn windows_app_task(task: &str) -> bool {
+    let lower = task.to_ascii_lowercase();
+    lower.contains("windows app")
+        || lower.contains("winui")
+        || lower.contains("desktop app")
+        || lower.contains("calculator for windows")
+        || lower.contains("calculator app for windows")
+}
+
+fn selected_winui_skill(selected_skills: &[String], installed_skills: &[SkillInfo]) -> bool {
+    selected_skills.iter().any(|selected| {
+        installed_skills
+            .iter()
+            .find(|skill| skill.name.eq_ignore_ascii_case(selected))
+            .is_some_and(|skill| {
+                let identity = format!(
+                    "{} {} {}",
+                    skill.name, skill.manifest.title, skill.description
+                )
+                .to_ascii_lowercase();
+                identity.contains("winui") || identity.contains("windows app sdk")
+            })
+            || selected.to_ascii_lowercase().contains("winui")
+    })
+}
+
+fn windows_app_fallback_guidance() -> &'static str {
+    "Retry after installing WinUI tooling, choose a simpler HTML/CSS/JS desktop prototype, choose WPF if its templates are available, or run an environment audit only."
+}
+
+fn inspect_windows_app_readiness(workspace: &Path, check_winget: bool) -> WindowsAppReadiness {
+    let mut warnings = Vec::new();
+    let mut winui_template_available = false;
+
+    match resolve_command("dotnet") {
+        None => warnings.push(preflight_message(
+            "windows_dotnet_missing",
+            format!(
+                "Windows app tooling warning: the .NET SDK command is unavailable. {}",
+                windows_app_fallback_guidance()
+            ),
+        )),
+        Some(dotnet) => {
+            if let Err(error) = run_resolved_command_capture(workspace, &dotnet, &["--info"]) {
+                warnings.push(preflight_message(
+                    "windows_dotnet_unusable",
+                    format!(
+                        "Windows app tooling warning: `dotnet --info` could not complete: {}. {}",
+                        truncate_text(&error, 400),
+                        windows_app_fallback_guidance()
+                    ),
+                ));
+            }
+            match run_resolved_command_capture(
+                workspace,
+                &dotnet,
+                &["new", "list", "winui"],
+            ) {
+                Ok(output)
+                    if output.to_ascii_lowercase().contains("winui")
+                        && !output
+                            .to_ascii_lowercase()
+                            .contains("no templates found matching") =>
+                {
+                    winui_template_available = true;
+                }
+                Ok(_) => warnings.push(preflight_message(
+                    "winui_template_missing",
+                    format!(
+                        "WinUI tooling may be missing: `dotnet new list winui` did not find a WinUI template. The agent may be blocked before creating files. {}",
+                        windows_app_fallback_guidance()
+                    ),
+                )),
+                Err(error) => warnings.push(preflight_message(
+                    "winui_template_check_failed",
+                    format!(
+                        "WinUI tooling could not be verified: {}. The agent may be blocked before creating files. {}",
+                        truncate_text(&error, 400),
+                        windows_app_fallback_guidance()
+                    ),
+                )),
+            }
+        }
+    }
+
+    if check_winget {
+        match resolve_command("winget") {
+            None => warnings.push(preflight_message(
+                "winget_missing",
+                "WinUI setup warning: WinGet is not installed or is unavailable on PATH. Install/repair App Installer or use Visual Studio Installer before retrying setup.",
+            )),
+            Some(winget) => {
+                if let Err(error) =
+                    run_resolved_command_capture(workspace, &winget, &["--version"])
+                {
+                    warnings.push(preflight_message(
+                        "winget_unusable",
+                        format!(
+                            "WinUI setup warning: `winget --version` failed: {}.",
+                            truncate_text(&error, 400)
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
+    WindowsAppReadiness {
+        winui_template_available,
+        warnings,
+    }
+}
+
+fn run_resolved_command_capture(
+    cwd: &Path,
+    program: &Path,
+    args: &[&str],
+) -> Result<String, String> {
+    let owned_args = args
+        .iter()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>();
+    let output = command_for_program(program, &owned_args)
+        .current_dir(cwd)
+        .output()
+        .map_err(to_error)?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let combined = [stdout.as_str(), stderr.as_str()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if output.status.success() {
+        Ok(combined)
+    } else if combined.is_empty() {
+        Err(format!("command exited with {}", output.status))
+    } else {
+        Err(combined)
+    }
+}
+
+fn validate_prompt_run_mode(prompt: &str, requested_run_mode: &str) -> Result<(), String> {
+    let declared_mode = prompt.lines().find_map(|line| {
+        let normalized = line.trim().to_ascii_lowercase();
+        let value = normalized.strip_prefix("run mode:")?.trim();
+        if value.starts_with("inspect only") || value.starts_with("inspect_only") {
+            Some("inspect_only")
+        } else if value.starts_with("edit") {
+            Some("edit")
+        } else {
+            None
+        }
+    });
+    if declared_mode.is_some_and(|declared| declared != requested_run_mode) {
+        return Err(format!(
+            "RUN_MODE_MISMATCH: The generated prompt declares {} but run_agent requested {}. The session was not started.",
+            declared_mode.unwrap_or("unknown"),
+            requested_run_mode
+        ));
+    }
+    Ok(())
 }
 
 fn provider_command(provider: &str) -> Option<&str> {
@@ -2711,16 +4374,28 @@ const GITHUB_SEARCH_TERMS: [&str; 6] = [
     "ai agent skill",
     "developer skill",
 ];
-const GITHUB_SKILL_PATHS: [&str; 9] = [
-    "SKILL.md",
-    "skill.json",
-    "README.md",
-    ".agentboard/skill.json",
-    ".agentboard/SKILL.md",
-    "skills/SKILL.md",
-    "skills/skill.json",
-    "agentboard/skill.json",
-    "agentboard/SKILL.md",
+const GITHUB_MAX_CANDIDATES_PER_REPO: usize = 20;
+const GITHUB_ROOT_CANDIDATE_DIRS: [&str; 4] = ["", ".agentboard", "skills", "agentboard"];
+const GITHUB_NESTED_CANDIDATE_PREFIXES: [&str; 5] = [
+    "skills",
+    ".codex/skills",
+    ".agents/skills",
+    "agentboard/skills",
+    "packages",
+];
+const GITHUB_IGNORED_TREE_DIRS: [&str; 12] = [
+    ".git",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    "vendor",
+    "coverage",
+    ".next",
+    "out",
+    ".turbo",
+    ".cache",
+    "__pycache__",
 ];
 
 fn github_marketplace_search_impl(
@@ -2810,6 +4485,7 @@ fn github_marketplace_search_impl(
     let installed = load_skills(&workspace);
     let mut items = Vec::new();
     for repo in response.items {
+        let license = github_license_name(repo.license.as_ref());
         let tree_url = github_api_url(&[
             "repos",
             &repo.owner.login,
@@ -2820,13 +4496,21 @@ fn github_marketplace_search_impl(
         ])?;
         let tree_url = format!("{tree_url}?recursive=1");
         let tree_result = github_get_json::<GithubTreeApi>(state, &tree_url, "core");
-        let (detected_files, tree_sha, detection_unavailable) = match tree_result {
+        let (mut candidates, detected_files, detection_unavailable) = match tree_result {
             Ok((tree, tree_rate)) => {
                 rate_limit = tree_rate;
-                (detect_skill_paths(&tree.tree), Some(tree.sha), false)
+                let candidates = detect_skill_candidates(
+                    &tree.tree,
+                    &repo.full_name,
+                    &repo.html_url,
+                    &repo.default_branch,
+                    None,
+                );
+                let detected_files = candidate_detected_files(&candidates);
+                (candidates, detected_files, false)
             }
-            Err(error) if is_github_rate_limit_error(&error) => (Vec::new(), None, true),
-            Err(_) => (Vec::new(), None, false),
+            Err(error) if is_github_rate_limit_error(&error) => (Vec::new(), Vec::new(), true),
+            Err(_) => (Vec::new(), Vec::new(), false),
         };
         let status = if detection_unavailable {
             "detection_unavailable".to_string()
@@ -2837,23 +4521,17 @@ fn github_marketplace_search_impl(
         {
             continue;
         }
-        let installed_skill = installed.iter().find(|skill| {
-            skill
-                .repo_full_name
-                .as_deref()
-                .is_some_and(|value| value.eq_ignore_ascii_case(&repo.full_name))
-        });
-        let mut latest_commit_sha = tree_sha;
-        let mut install_status = installed_skill
-            .map(|skill| {
-                if skill.trust_state == "disabled" {
-                    "disabled".to_string()
-                } else {
-                    "installed".to_string()
-                }
+        let repo_installed_skills = installed
+            .iter()
+            .filter(|skill| {
+                skill
+                    .repo_full_name
+                    .as_deref()
+                    .is_some_and(|value| value.eq_ignore_ascii_case(&repo.full_name))
             })
-            .unwrap_or_else(|| "not_installed".to_string());
-        if let Some(skill) = installed_skill {
+            .collect::<Vec<_>>();
+        let mut latest_commit_sha = None;
+        if !repo_installed_skills.is_empty() {
             let commit_url = github_api_url(&[
                 "repos",
                 &repo.owner.login,
@@ -2866,25 +4544,41 @@ fn github_marketplace_search_impl(
             {
                 rate_limit = commit_rate;
                 latest_commit_sha = Some(commit.sha.clone());
-                if skill.trust_state != "disabled" {
-                    let installed_sha = read_github_skill_source(Path::new(&skill.path))
-                        .map(|source| source.commit_sha)
-                        .unwrap_or_default();
-                    if installed_sha != commit.sha {
-                        install_status = "update_available".to_string();
-                    }
-                }
             }
         }
+        apply_installed_status_to_candidates(
+            &mut candidates,
+            &repo_installed_skills,
+            latest_commit_sha.as_deref(),
+        );
+        for candidate in &mut candidates {
+            candidate.commit_sha = latest_commit_sha.clone();
+            candidate.preview_cached = cache
+                .previews
+                .get(&github_preview_cache_key(
+                    &workspace,
+                    &repo.full_name,
+                    Some(&candidate.id),
+                ))
+                .is_some_and(cached_preview_is_fresh);
+        }
+        let installed_skill_name = candidates
+            .iter()
+            .find_map(|candidate| candidate.installed_skill_name.clone())
+            .or_else(|| {
+                repo_installed_skills
+                    .first()
+                    .map(|skill| skill.name.clone())
+            });
+        let install_status =
+            aggregate_candidate_install_status(&candidates, &repo_installed_skills);
         let (quality_score, quality_label) = skill_quality(
             &detected_files,
             repo.stargazers_count,
-            repo.license.is_some(),
+            license.is_some(),
             &repo.topics,
         );
-        let preview_cached = cache
-            .previews
-            .contains_key(&github_preview_cache_key(&workspace, &repo.full_name));
+        let preview_cached = candidates.iter().any(|candidate| candidate.preview_cached);
         items.push(GithubMarketplaceRepo {
             id: repo.id,
             full_name: repo.full_name,
@@ -2896,17 +4590,18 @@ fn github_marketplace_search_impl(
             stars: repo.stargazers_count,
             forks: repo.forks_count,
             language: repo.language,
-            license: github_license_name(repo.license.as_ref()),
+            license,
             updated_at: repo.updated_at,
             topics: repo.topics,
             detected_skill_status: status,
             detected_files,
             quality_score,
             quality_label,
-            installed_skill_name: installed_skill.map(|skill| skill.name.clone()),
+            installed_skill_name,
             install_status,
             latest_commit_sha,
             preview_cached,
+            candidates,
         });
     }
     let result = GithubMarketplaceSearchResult {
@@ -2930,19 +4625,32 @@ fn github_marketplace_preview_impl(
 ) -> Result<GithubMarketplacePreview, String> {
     let workspace = validate_marketplace_workspace(&request.workspace_path)?;
     validate_repo_full_name(&request.repo_full_name)?;
-    let cache_key = github_preview_cache_key(&workspace, &request.repo_full_name);
+    let requested_candidate = request
+        .candidate_id
+        .as_deref()
+        .or(request.candidate_path.as_deref());
+    let cache_key =
+        github_preview_cache_key(&workspace, &request.repo_full_name, requested_candidate);
     let mut cache = read_github_marketplace_cache(app_data);
-    if !request.force_refresh && cache_is_fresh(cache.updated_at.as_deref()) {
-        if let Some(cached) = cache.previews.get(&cache_key) {
+    if !request.force_refresh {
+        if let Some(cached) = cache
+            .previews
+            .get(&cache_key)
+            .filter(|preview| cached_preview_is_fresh(preview))
+        {
             let mut preview = cached.clone();
             preview.cached = true;
             return Ok(preview);
         }
     }
-    let mut preview = match fetch_github_preview(state, &workspace, &request.repo_full_name) {
+    let mut preview = match fetch_github_preview(state, &workspace, &request) {
         Ok(preview) => preview,
         Err(error) if !request.force_refresh && is_github_rate_limit_error(&error) => {
-            if let Some(cached) = cache.previews.get(&cache_key) {
+            if let Some(cached) = cache
+                .previews
+                .get(&cache_key)
+                .filter(|preview| cached_preview_is_fresh(preview))
+            {
                 let mut preview = cached.clone();
                 preview.cached = true;
                 return Ok(preview);
@@ -2952,6 +4660,12 @@ fn github_marketplace_preview_impl(
         Err(error) => return Err(error),
     };
     preview.cached = false;
+    let selected_cache_key = github_preview_cache_key(
+        &workspace,
+        &request.repo_full_name,
+        Some(&preview.candidate_id),
+    );
+    cache.previews.insert(selected_cache_key, preview.clone());
     cache.previews.insert(cache_key, preview.clone());
     cache.updated_at = Some(now_iso());
     write_github_marketplace_cache(app_data, &cache)?;
@@ -2964,24 +4678,13 @@ fn github_marketplace_install_impl(
     request: GithubMarketplaceInstallRequest,
 ) -> Result<GithubMarketplaceInstallResult, String> {
     let workspace = validate_marketplace_workspace(&request.workspace_path)?;
-    let preview = github_marketplace_preview_impl(
-        state,
-        app_data,
-        GithubMarketplacePreviewRequest {
-            workspace_path: request.workspace_path.clone(),
-            repo_full_name: request.repo_full_name.clone(),
-            force_refresh: true,
-        },
-    )?;
+    let preview = github_marketplace_install_preview(state, app_data, &workspace, &request)?;
     if !preview.formal_skill && !preview.readme_only {
-        return Err(
-            "This repository has no supported skill or README file to install.".to_string(),
-        );
+        return Err("This candidate has no supported skill or README file to install.".to_string());
     }
     if preview.readme_only && !request.allow_readme_draft {
         return Err(
-            "No formal skill file was found. Confirm Install README as skill draft first."
-                .to_string(),
+            "No formal skill file was found. Confirm Create draft from README first.".to_string(),
         );
     }
     let requested_name = request
@@ -3033,15 +4736,19 @@ fn github_marketplace_install_impl(
         None,
     )?;
     let skill = load_skill_directory(&destination)?;
+    let message = if preview.readme_only {
+        "Draft created from repository README. Review and edit before use.".to_string()
+    } else {
+        "Skill installed as untrusted. Remote code was not executed; review before enabling."
+            .to_string()
+    };
     Ok(GithubMarketplaceInstallResult {
         status: "installed".to_string(),
         skill: Some(skill),
         path: Some(destination.to_string_lossy().to_string()),
         suggested_name: None,
         backup_path,
-        message:
-            "Skill installed as untrusted. Remote code was not executed; review before enabling."
-                .to_string(),
+        message,
     })
 }
 
@@ -3057,22 +4764,49 @@ fn github_marketplace_update_impl(
         .join("skills")
         .join(&skill_name);
     let source = read_github_skill_source(&skill_dir)?;
-    let preview = github_marketplace_preview_impl(
-        state,
-        app_data,
-        GithubMarketplacePreviewRequest {
-            workspace_path: request.workspace_path,
-            repo_full_name: source.repo_full_name.clone(),
-            force_refresh: true,
-        },
-    )?;
+    let preview_request = GithubMarketplacePreviewRequest {
+        workspace_path: request.workspace_path,
+        repo_full_name: source.repo_full_name.clone(),
+        candidate_id: source.candidate_id.clone(),
+        candidate_path: source.candidate_path.clone(),
+        force_refresh: true,
+    };
+    let preview = match github_marketplace_preview_impl(state, app_data, preview_request) {
+        Ok(preview) => preview,
+        Err(error) if is_github_rate_limit_error(&error) => {
+            let cache = read_github_marketplace_cache(app_data);
+            let cache_key = github_preview_cache_key(
+                &workspace,
+                &source.repo_full_name,
+                source.candidate_id.as_deref(),
+            );
+            if let Some(cached) = cache.previews.get(&cache_key) {
+                return Ok(GithubMarketplaceUpdateResult {
+                    status: "cached_rate_limited".to_string(),
+                    changed_files: Vec::new(),
+                    previous_commit_sha: source.commit_sha,
+                    latest_commit_sha: cached.commit_sha.clone(),
+                    backup_path: None,
+                    skill: Some(load_skill_directory(&skill_dir)?),
+                    message: "GitHub rate limit reached. Existing install was left unchanged; cached preview status is available. Retry later.".to_string(),
+                });
+            }
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
     let fetched = fetched_skill_from_preview(&preview, preview.readme_only)?;
-    let manifest = normalize_github_manifest(
+    let mut manifest = normalize_github_manifest(
         fetched.skill_json.as_ref(),
         &skill_name,
         &preview.repo,
         source.trust_state == "trusted",
     )?;
+    if fetched.source_content_kind == "readme_draft" {
+        manifest.title = format!("Draft from {} README", preview.repo.full_name);
+        manifest.description =
+            "Draft created from repository README. Review and edit before use.".to_string();
+    }
     let manifest_text = pretty_json(&manifest)?;
     let markdown_text = format!("{}\n", fetched.markdown.trim_end());
     let mut changed_files = Vec::new();
@@ -3082,7 +4816,7 @@ fn github_marketplace_update_impl(
     if fs::read_to_string(skill_dir.join("skill.json")).unwrap_or_default() != manifest_text {
         changed_files.push("skill.json".to_string());
     }
-    let latest_commit_sha = preview.repo.latest_commit_sha.clone().unwrap_or_default();
+    let latest_commit_sha = preview.commit_sha.clone();
     if latest_commit_sha != source.commit_sha {
         changed_files.push("source.json".to_string());
     }
@@ -3223,9 +4957,9 @@ fn github_marketplace_rate_limit_impl(state: &AppState) -> Result<GithubRateLimi
 fn fetch_github_preview(
     state: &AppState,
     workspace: &Path,
-    repo_full_name: &str,
+    request: &GithubMarketplacePreviewRequest,
 ) -> Result<GithubMarketplacePreview, String> {
-    let (owner, repo_name) = split_repo_full_name(repo_full_name)?;
+    let (owner, repo_name) = split_repo_full_name(&request.repo_full_name)?;
     let repo_url = github_api_url(&["repos", owner, repo_name])?;
     let (repo, _) = github_get_json::<GithubRepoApi>(state, &repo_url, "core")?;
     let commit_url = github_api_url(&["repos", owner, repo_name, "commits", &repo.default_branch])?;
@@ -3240,9 +4974,26 @@ fn fetch_github_preview(
     ])?;
     let (tree, mut rate_limit) =
         github_get_json::<GithubTreeApi>(state, &format!("{tree_url}?recursive=1"), "core")?;
-    let detected_files = detect_skill_paths(&tree.tree);
-    let selected_paths = selected_preview_paths(&detected_files);
+    let mut candidates = detect_skill_candidates(
+        &tree.tree,
+        &repo.full_name,
+        &repo.html_url,
+        &repo.default_branch,
+        Some(&commit.sha),
+    );
+    let selected_id = select_github_candidate_id(
+        &candidates,
+        request.candidate_id.as_deref(),
+        request.candidate_path.as_deref(),
+    )?;
+    let selected = candidates
+        .iter()
+        .find(|candidate| candidate.id == selected_id)
+        .cloned()
+        .ok_or_else(|| "Selected GitHub skill candidate disappeared.".to_string())?;
+    let selected_paths = selected_preview_paths(&selected);
     let mut files = Vec::new();
+    let mut content_shas = HashMap::new();
     for path in selected_paths {
         let item = tree
             .tree
@@ -3276,16 +5027,30 @@ fn fetch_github_preview(
             size,
             sha: item.sha.clone(),
         });
+        content_shas.insert(item.path.clone(), item.sha.clone());
     }
-    let formal_skill = files.iter().any(|file| file.kind == "skill_markdown");
-    let readme_only = !formal_skill && files.iter().any(|file| file.kind == "readme");
     let installed = load_skills(workspace);
-    let installed_skill = installed.iter().find(|skill| {
-        skill
-            .repo_full_name
-            .as_deref()
-            .is_some_and(|value| value.eq_ignore_ascii_case(&repo.full_name))
-    });
+    let repo_installed_skills = installed
+        .iter()
+        .filter(|skill| {
+            skill
+                .repo_full_name
+                .as_deref()
+                .is_some_and(|value| value.eq_ignore_ascii_case(&repo.full_name))
+        })
+        .collect::<Vec<_>>();
+    apply_installed_status_to_candidates(
+        &mut candidates,
+        &repo_installed_skills,
+        Some(&commit.sha),
+    );
+    let mut selected = candidates
+        .iter()
+        .find(|candidate| candidate.id == selected_id)
+        .cloned()
+        .ok_or_else(|| "Selected GitHub skill candidate disappeared.".to_string())?;
+    selected.preview_cached = false;
+    let detected_files = candidate_detected_files(&candidates);
     let (quality_score, quality_label) = skill_quality(
         &detected_files,
         repo.stargazers_count,
@@ -3293,6 +5058,15 @@ fn fetch_github_preview(
         &repo.topics,
     );
     let license = github_license_name(repo.license.as_ref());
+    let installed_skill_name = candidates
+        .iter()
+        .find_map(|candidate| candidate.installed_skill_name.clone())
+        .or_else(|| {
+            repo_installed_skills
+                .first()
+                .map(|skill| skill.name.clone())
+        });
+    let install_status = aggregate_candidate_install_status(&candidates, &repo_installed_skills);
     let repo_info = GithubMarketplaceRepo {
         id: repo.id,
         full_name: repo.full_name,
@@ -3311,46 +5085,48 @@ fn fetch_github_preview(
         detected_files,
         quality_score,
         quality_label,
-        installed_skill_name: installed_skill.map(|skill| skill.name.clone()),
-        install_status: installed_skill
-            .map(|skill| {
-                if skill.trust_state == "disabled" {
-                    "disabled".to_string()
-                } else {
-                    let current_sha = read_github_skill_source(Path::new(&skill.path))
-                        .map(|source| source.commit_sha)
-                        .unwrap_or_default();
-                    if current_sha != commit.sha {
-                        "update_available".to_string()
-                    } else {
-                        "installed".to_string()
-                    }
-                }
-            })
-            .unwrap_or_else(|| "not_installed".to_string()),
+        installed_skill_name,
+        install_status,
         latest_commit_sha: Some(commit.sha),
         preview_cached: false,
+        candidates,
     };
-    let warning = if formal_skill {
+    let warning = if selected.formal_skill {
         None
-    } else if readme_only {
-        Some(
-            "No formal skill file. Installation requires confirming README as a skill draft."
-                .to_string(),
-        )
+    } else if selected.readme_only {
+        Some("Draft created from repository README. Review and edit before use.".to_string())
+    } else if !selected.installable {
+        Some(if selected.detection_warnings.is_empty() {
+            "This candidate is missing SKILL.md and cannot be installed as a formal skill."
+                .to_string()
+        } else {
+            selected.detection_warnings.join(" ")
+        })
     } else {
         Some("No supported skill files were detected.".to_string())
     };
+    let cached_at = now_iso();
     Ok(GithubMarketplacePreview {
         repo: repo_info,
+        candidate: selected.clone(),
         files,
-        formal_skill,
-        readme_only,
-        installable: formal_skill || readme_only,
-        recommended_name: validate_safe_skill_name(&sanitize_slug(&repo_name))
+        formal_skill: selected.formal_skill,
+        readme_only: selected.readme_only,
+        installable: selected.installable,
+        recommended_name: validate_safe_skill_name(&sanitize_slug(&selected.candidate_name))
             .unwrap_or_else(|_| "github-skill".to_string()),
         warning,
         cached: false,
+        repo_full_name: selected.repo_full_name.clone(),
+        commit_sha: selected.commit_sha.clone().unwrap_or_default(),
+        candidate_id: selected.id.clone(),
+        candidate_path: selected.candidate_path.clone(),
+        skill_markdown_path: selected.skill_markdown_path.clone(),
+        skill_json_path: selected.skill_json_path.clone(),
+        readme_path: selected.readme_path.clone(),
+        source_content_kind: selected.source_content_kind.clone(),
+        content_shas,
+        cached_at,
         rate_limit,
     })
 }
@@ -3360,6 +5136,10 @@ struct FetchedGithubSkill {
     markdown_path: String,
     skill_json: Option<Value>,
     skill_json_path: Option<String>,
+    readme_path: Option<String>,
+    source_content_kind: String,
+    candidate_id: String,
+    candidate_path: String,
 }
 
 fn fetched_skill_from_preview(
@@ -3394,6 +5174,10 @@ fn fetched_skill_from_preview(
         markdown_path: markdown.path.clone(),
         skill_json,
         skill_json_path: skill_json_file.map(|file| file.path.clone()),
+        readme_path: preview.readme_path.clone(),
+        source_content_kind: preview.source_content_kind.clone(),
+        candidate_id: preview.candidate_id.clone(),
+        candidate_path: preview.candidate_path.clone(),
     })
 }
 
@@ -3406,23 +5190,56 @@ fn write_github_skill_install(
     installed_at: Option<String>,
 ) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(to_error)?;
-    let manifest = normalize_github_manifest(
+    let mut manifest = normalize_github_manifest(
         fetched.skill_json.as_ref(),
         skill_name,
         repo,
         trust_state == "trusted",
     )?;
+    if fetched.source_content_kind == "readme_draft" {
+        manifest.title = format!("Draft from {} README", repo.full_name);
+        manifest.description =
+            "Draft created from repository README. Review and edit before use.".to_string();
+    }
     let installed_at = installed_at.unwrap_or_else(now_iso);
     let mut fetched_files = vec![fetched.markdown_path.clone()];
     if let Some(path) = &fetched.skill_json_path {
         fetched_files.push(path.clone());
     }
+    if let Some(path) = &fetched.readme_path {
+        if !fetched_files.iter().any(|file| file == path) {
+            fetched_files.push(path.clone());
+        }
+    }
+    let warning = if fetched.source_content_kind == "readme_draft" {
+        "Draft created from repository README. Review and edit before use.".to_string()
+    } else {
+        "Remote code was not executed.".to_string()
+    };
+    let skill_markdown_path = if fetched.source_content_kind == "formal_skill" {
+        Some(fetched.markdown_path.clone())
+    } else {
+        None
+    };
+    let readme_path = fetched.readme_path.clone().or_else(|| {
+        if fetched.source_content_kind == "readme_draft" {
+            Some(fetched.markdown_path.clone())
+        } else {
+            None
+        }
+    });
     let source = GithubSkillSource {
         source: "github".to_string(),
         repo_full_name: repo.full_name.clone(),
         repo_url: repo.html_url.clone(),
         default_branch: repo.default_branch.clone(),
         commit_sha: repo.latest_commit_sha.clone().unwrap_or_default(),
+        source_content_kind: fetched.source_content_kind.clone(),
+        candidate_id: Some(fetched.candidate_id.clone()),
+        candidate_path: Some(fetched.candidate_path.clone()),
+        skill_markdown_path,
+        skill_json_path: fetched.skill_json_path.clone(),
+        readme_path,
         installed_at,
         updated_at: now_iso(),
         stars_at_install: repo.stars,
@@ -3431,7 +5248,7 @@ fn write_github_skill_install(
         fetched_files,
         trusted: trust_state == "trusted",
         trust_state: trust_state.to_string(),
-        warning: "Imported GitHub skill. Remote code was not executed.".to_string(),
+        warning,
         original_skill_json: fetched.skill_json.clone(),
     };
     fs::write(
@@ -3723,59 +5540,360 @@ fn github_search_url(query: &str, sort: Option<&str>) -> Result<reqwest::Url, St
         .map_err(to_error)
 }
 
-fn detect_skill_paths(tree: &[GithubTreeItemApi]) -> Vec<String> {
-    let mut detected = Vec::new();
-    for expected in GITHUB_SKILL_PATHS {
-        if let Some(item) = tree
-            .iter()
-            .find(|item| item.item_type == "blob" && item.path.eq_ignore_ascii_case(expected))
-        {
-            detected.push(item.path.clone());
-        }
-    }
-    detected
+#[derive(Default)]
+struct GithubCandidateAccumulator {
+    candidate_name: String,
+    skill_markdown_path: Option<String>,
+    skill_json_path: Option<String>,
+    readme_path: Option<String>,
+    nested: bool,
 }
 
-fn selected_preview_paths(detected: &[String]) -> Vec<String> {
-    let mut selected = Vec::new();
-    if let Some(path) = GITHUB_SKILL_PATHS.iter().find_map(|expected| {
-        detected
-            .iter()
-            .find(|path| {
-                path.eq_ignore_ascii_case(expected) && github_file_kind(path) == "skill_markdown"
-            })
-            .cloned()
-    }) {
-        selected.push(path);
+fn detect_skill_candidates(
+    tree: &[GithubTreeItemApi],
+    repo_full_name: &str,
+    repo_url: &str,
+    default_branch: &str,
+    commit_sha: Option<&str>,
+) -> Vec<GithubMarketplaceCandidate> {
+    let repo_name = repo_full_name
+        .rsplit('/')
+        .next()
+        .unwrap_or("github-skill")
+        .to_string();
+    let mut by_path: BTreeMap<String, GithubCandidateAccumulator> = BTreeMap::new();
+    for item in tree.iter().filter(|item| item.item_type == "blob") {
+        let Some((candidate_path, candidate_name, nested)) =
+            candidate_base_for_tree_path(&item.path)
+        else {
+            continue;
+        };
+        let entry =
+            by_path
+                .entry(candidate_path.clone())
+                .or_insert_with(|| GithubCandidateAccumulator {
+                    candidate_name: if candidate_name.is_empty() {
+                        repo_name.clone()
+                    } else {
+                        candidate_name.clone()
+                    },
+                    nested,
+                    ..Default::default()
+                });
+        entry.nested = entry.nested || nested;
+        match github_file_kind(&item.path) {
+            "skill_markdown" => entry.skill_markdown_path = Some(item.path.clone()),
+            "skill_json" => entry.skill_json_path = Some(item.path.clone()),
+            "readme" => entry.readme_path = Some(item.path.clone()),
+            _ => {}
+        }
     }
-    if let Some(path) = GITHUB_SKILL_PATHS.iter().find_map(|expected| {
-        detected
-            .iter()
-            .find(|path| {
-                path.eq_ignore_ascii_case(expected) && github_file_kind(path) == "skill_json"
-            })
-            .cloned()
-    }) {
-        selected.push(path);
+
+    let mut candidates = Vec::new();
+    for (candidate_path, entry) in by_path.iter() {
+        if entry.skill_markdown_path.is_none() && entry.skill_json_path.is_none() {
+            continue;
+        }
+        let detected_files = candidate_files(entry);
+        let mut detection_warnings = Vec::new();
+        if entry.skill_markdown_path.is_none() {
+            detection_warnings.push(
+                "Found skill.json but no SKILL.md; this candidate cannot be installed as a formal skill."
+                    .to_string(),
+            );
+        }
+        candidates.push(GithubMarketplaceCandidate {
+            id: github_candidate_id("formal", candidate_path),
+            repo_full_name: repo_full_name.to_string(),
+            repo_url: repo_url.to_string(),
+            default_branch: default_branch.to_string(),
+            commit_sha: commit_sha.map(ToString::to_string),
+            candidate_name: entry.candidate_name.clone(),
+            candidate_path: display_candidate_path(candidate_path),
+            skill_markdown_path: entry.skill_markdown_path.clone(),
+            skill_json_path: entry.skill_json_path.clone(),
+            readme_path: entry.readme_path.clone(),
+            source_content_kind: "formal_skill".to_string(),
+            formal_skill: entry.skill_markdown_path.is_some(),
+            readme_only: false,
+            installable: entry.skill_markdown_path.is_some(),
+            detection_warnings,
+            nested: entry.nested,
+            detected_files,
+            installed_skill_name: None,
+            install_status: "not_installed".to_string(),
+            preview_cached: false,
+        });
+        if candidates.len() >= GITHUB_MAX_CANDIDATES_PER_REPO {
+            return candidates;
+        }
     }
-    if selected
-        .iter()
-        .all(|path| github_file_kind(path) != "skill_markdown")
-    {
-        if let Some(readme) = detected
+
+    let has_formal_installable = candidates.iter().any(|candidate| candidate.formal_skill);
+    if !has_formal_installable {
+        if let Some(root_readme) = by_path.get("").and_then(|entry| entry.readme_path.clone()) {
+            candidates.push(GithubMarketplaceCandidate {
+                id: github_candidate_id("readme", ""),
+                repo_full_name: repo_full_name.to_string(),
+                repo_url: repo_url.to_string(),
+                default_branch: default_branch.to_string(),
+                commit_sha: commit_sha.map(ToString::to_string),
+                candidate_name: repo_name,
+                candidate_path: ".".to_string(),
+                skill_markdown_path: None,
+                skill_json_path: None,
+                readme_path: Some(root_readme.clone()),
+                source_content_kind: "readme_draft".to_string(),
+                formal_skill: false,
+                readme_only: true,
+                installable: true,
+                detection_warnings: vec![
+                    "No formal SKILL.md was detected; README import creates a draft only."
+                        .to_string(),
+                ],
+                nested: false,
+                detected_files: vec![root_readme],
+                installed_skill_name: None,
+                install_status: "not_installed".to_string(),
+                preview_cached: false,
+            });
+        }
+    }
+
+    candidates.truncate(GITHUB_MAX_CANDIDATES_PER_REPO);
+    candidates
+}
+
+fn candidate_base_for_tree_path(path: &str) -> Option<(String, String, bool)> {
+    let normalized = path.replace('\\', "/");
+    let parts = normalized.split('/').collect::<Vec<_>>();
+    if parts.iter().any(|part| {
+        GITHUB_IGNORED_TREE_DIRS
             .iter()
-            .find(|path| github_file_kind(path) == "readme")
+            .any(|ignored| part.eq_ignore_ascii_case(ignored))
+    }) {
+        return None;
+    }
+    let file_name = parts.last()?;
+    if !matches!(
+        github_file_kind(file_name),
+        "skill_markdown" | "skill_json" | "readme"
+    ) {
+        return None;
+    }
+
+    for root in GITHUB_ROOT_CANDIDATE_DIRS {
+        let root_parts = if root.is_empty() {
+            Vec::new()
+        } else {
+            root.split('/').collect::<Vec<_>>()
+        };
+        if parts.len() == root_parts.len() + 1
+            && root_parts
+                .iter()
+                .enumerate()
+                .all(|(index, part)| parts[index].eq_ignore_ascii_case(part))
         {
-            selected.push(readme.clone());
+            let candidate_path = root_parts.join("/");
+            let candidate_name = root_parts
+                .last()
+                .map(|value| (*value).to_string())
+                .unwrap_or_default();
+            return Some((candidate_path, candidate_name, false));
+        }
+    }
+
+    for prefix in GITHUB_NESTED_CANDIDATE_PREFIXES {
+        let prefix_parts = prefix.split('/').collect::<Vec<_>>();
+        if parts.len() == prefix_parts.len() + 2
+            && prefix_parts
+                .iter()
+                .enumerate()
+                .all(|(index, part)| parts[index].eq_ignore_ascii_case(part))
+        {
+            let skill_name = parts[prefix_parts.len()].to_string();
+            let candidate_path = parts[..=prefix_parts.len()].join("/");
+            return Some((candidate_path, skill_name, true));
+        }
+    }
+
+    None
+}
+
+fn candidate_files(entry: &GithubCandidateAccumulator) -> Vec<String> {
+    let mut files = Vec::new();
+    if let Some(path) = &entry.skill_markdown_path {
+        files.push(path.clone());
+    }
+    if let Some(path) = &entry.skill_json_path {
+        files.push(path.clone());
+    }
+    if let Some(path) = &entry.readme_path {
+        files.push(path.clone());
+    }
+    files
+}
+
+fn candidate_detected_files(candidates: &[GithubMarketplaceCandidate]) -> Vec<String> {
+    let mut files = candidates
+        .iter()
+        .flat_map(|candidate| candidate.detected_files.iter().cloned())
+        .collect::<Vec<_>>();
+    files.sort_by_key(|path| path.to_ascii_lowercase());
+    files.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
+    files
+}
+
+fn selected_preview_paths(candidate: &GithubMarketplaceCandidate) -> Vec<String> {
+    let mut selected = Vec::new();
+    if let Some(path) = &candidate.skill_markdown_path {
+        selected.push(path.clone());
+    }
+    if let Some(path) = &candidate.skill_json_path {
+        selected.push(path.clone());
+    }
+    if let Some(path) = &candidate.readme_path {
+        if candidate.readme_only || candidate.formal_skill {
+            selected.push(path.clone());
         }
     }
     selected
 }
 
+fn select_github_candidate_id(
+    candidates: &[GithubMarketplaceCandidate],
+    candidate_id: Option<&str>,
+    candidate_path: Option<&str>,
+) -> Result<String, String> {
+    if let Some(candidate_id) = candidate_id {
+        if let Some(candidate) = candidates
+            .iter()
+            .find(|candidate| candidate.id.eq_ignore_ascii_case(candidate_id))
+        {
+            return Ok(candidate.id.clone());
+        }
+        return Err(
+            "Selected GitHub skill candidate was not found in this repository.".to_string(),
+        );
+    }
+    if let Some(candidate_path) = candidate_path {
+        if let Some(candidate) = candidates.iter().find(|candidate| {
+            candidate
+                .candidate_path
+                .eq_ignore_ascii_case(candidate_path)
+        }) {
+            return Ok(candidate.id.clone());
+        }
+        return Err("Selected GitHub skill path was not found in this repository.".to_string());
+    }
+    candidates
+        .iter()
+        .find(|candidate| candidate.formal_skill && candidate.installable)
+        .or_else(|| candidates.iter().find(|candidate| candidate.readme_only))
+        .or_else(|| candidates.first())
+        .map(|candidate| candidate.id.clone())
+        .ok_or_else(|| "No supported skill candidates were detected.".to_string())
+}
+
+fn github_candidate_id(kind: &str, candidate_path: &str) -> String {
+    let path = display_candidate_path(candidate_path);
+    format!("{kind}:{path}")
+}
+
+fn display_candidate_path(candidate_path: &str) -> String {
+    if candidate_path.is_empty() {
+        ".".to_string()
+    } else {
+        candidate_path.replace('\\', "/")
+    }
+}
+
+fn apply_installed_status_to_candidates(
+    candidates: &mut [GithubMarketplaceCandidate],
+    installed_skills: &[&SkillInfo],
+    latest_commit_sha: Option<&str>,
+) {
+    for (index, candidate) in candidates.iter_mut().enumerate() {
+        let matched = installed_skills
+            .iter()
+            .copied()
+            .find(|skill| skill_matches_candidate(skill, candidate))
+            .or_else(|| {
+                if index == 0 {
+                    installed_skills.iter().copied().find(|skill| {
+                        skill.source_candidate_id.is_none() && skill.source_candidate_path.is_none()
+                    })
+                } else {
+                    None
+                }
+            });
+        if let Some(skill) = matched {
+            candidate.installed_skill_name = Some(skill.name.clone());
+            candidate.install_status = if skill.trust_state == "disabled" {
+                "disabled".to_string()
+            } else if let Some(latest_commit_sha) = latest_commit_sha {
+                let installed_sha = read_github_skill_source(Path::new(&skill.path))
+                    .map(|source| source.commit_sha)
+                    .unwrap_or_default();
+                if installed_sha != latest_commit_sha {
+                    "update_available".to_string()
+                } else {
+                    "installed".to_string()
+                }
+            } else {
+                "installed".to_string()
+            };
+        }
+    }
+}
+
+fn skill_matches_candidate(skill: &SkillInfo, candidate: &GithubMarketplaceCandidate) -> bool {
+    let repo_matches = skill
+        .repo_full_name
+        .as_deref()
+        .is_some_and(|value| value.eq_ignore_ascii_case(&candidate.repo_full_name));
+    if !repo_matches {
+        return false;
+    }
+    if let Some(candidate_id) = skill.source_candidate_id.as_deref() {
+        return candidate_id.eq_ignore_ascii_case(&candidate.id);
+    }
+    if let Some(candidate_path) = skill.source_candidate_path.as_deref() {
+        return candidate_path.eq_ignore_ascii_case(&candidate.candidate_path);
+    }
+    false
+}
+
+fn aggregate_candidate_install_status(
+    candidates: &[GithubMarketplaceCandidate],
+    installed_skills: &[&SkillInfo],
+) -> String {
+    if candidates
+        .iter()
+        .any(|candidate| candidate.install_status == "update_available")
+    {
+        "update_available".to_string()
+    } else if candidates
+        .iter()
+        .any(|candidate| candidate.install_status == "installed")
+    {
+        "installed".to_string()
+    } else if candidates
+        .iter()
+        .any(|candidate| candidate.install_status == "disabled")
+    {
+        "disabled".to_string()
+    } else if !installed_skills.is_empty() {
+        "installed".to_string()
+    } else {
+        "not_installed".to_string()
+    }
+}
+
 fn detected_skill_status(files: &[String]) -> String {
     if files
         .iter()
-        .any(|path| github_file_kind(path) == "skill_markdown")
+        .any(|path| matches!(github_file_kind(path), "skill_markdown" | "skill_json"))
     {
         "formal_skill".to_string()
     } else if files.iter().any(|path| github_file_kind(path) == "readme") {
@@ -3986,6 +6104,15 @@ fn load_skill_directory(path: &Path) -> Result<SkillInfo, String> {
         trust_state,
         repo_full_name: source.as_ref().map(|source| source.repo_full_name.clone()),
         source_url: source.as_ref().map(|source| source.repo_url.clone()),
+        source_content_kind: source
+            .as_ref()
+            .map(|source| source.source_content_kind.clone()),
+        source_candidate_id: source
+            .as_ref()
+            .and_then(|source| source.candidate_id.clone()),
+        source_candidate_path: source
+            .as_ref()
+            .and_then(|source| source.candidate_path.clone()),
     })
 }
 
@@ -3997,11 +6124,16 @@ fn read_github_marketplace_cache(app_data: &Path) -> GithubMarketplaceCache {
         .unwrap_or_default()
 }
 
-fn github_preview_cache_key(workspace: &Path, repo_full_name: &str) -> String {
+fn github_preview_cache_key(
+    workspace: &Path,
+    repo_full_name: &str,
+    candidate_id: Option<&str>,
+) -> String {
     format!(
-        "{}|{}",
+        "{}|{}|{}",
         normalized_cache_path(workspace),
-        repo_full_name.to_ascii_lowercase()
+        repo_full_name.to_ascii_lowercase(),
+        candidate_id.unwrap_or("default").to_ascii_lowercase()
     )
 }
 
@@ -4011,10 +6143,128 @@ fn mark_cached_previews(
     workspace: &Path,
 ) {
     for repo in &mut result.items {
-        repo.preview_cached = cache
-            .previews
-            .contains_key(&github_preview_cache_key(workspace, &repo.full_name));
+        for candidate in &mut repo.candidates {
+            candidate.preview_cached = cache
+                .previews
+                .get(&github_preview_cache_key(
+                    workspace,
+                    &repo.full_name,
+                    Some(&candidate.id),
+                ))
+                .is_some_and(cached_preview_is_fresh);
+        }
+        repo.preview_cached = repo
+            .candidates
+            .iter()
+            .any(|candidate| candidate.preview_cached)
+            || cache
+                .previews
+                .get(&github_preview_cache_key(workspace, &repo.full_name, None))
+                .is_some_and(cached_preview_is_fresh);
     }
+}
+
+fn github_marketplace_install_preview(
+    state: &AppState,
+    app_data: &Path,
+    workspace: &Path,
+    request: &GithubMarketplaceInstallRequest,
+) -> Result<GithubMarketplacePreview, String> {
+    validate_repo_full_name(&request.repo_full_name)?;
+    let cache = read_github_marketplace_cache(app_data);
+    if let Some(mut cached) = cached_preview_for_install(&cache, workspace, request) {
+        cached.cached = true;
+        return Ok(cached);
+    }
+    let preview = github_marketplace_preview_impl(
+        state,
+        app_data,
+        GithubMarketplacePreviewRequest {
+            workspace_path: request.workspace_path.clone(),
+            repo_full_name: request.repo_full_name.clone(),
+            candidate_id: request.candidate_id.clone(),
+            candidate_path: request.candidate_path.clone(),
+            force_refresh: false,
+        },
+    )?;
+    if !install_request_matches_preview(request, &preview) {
+        return Err(
+            "GitHub preview changed before install. Refresh the candidate preview and try again."
+                .to_string(),
+        );
+    }
+    Ok(preview)
+}
+
+fn cached_preview_for_install(
+    cache: &GithubMarketplaceCache,
+    workspace: &Path,
+    request: &GithubMarketplaceInstallRequest,
+) -> Option<GithubMarketplacePreview> {
+    let preferred_key = github_preview_cache_key(
+        workspace,
+        &request.repo_full_name,
+        request.candidate_id.as_deref(),
+    );
+    cache
+        .previews
+        .get(&preferred_key)
+        .filter(|preview| {
+            cached_preview_is_fresh(preview) && install_request_matches_preview(request, preview)
+        })
+        .cloned()
+        .or_else(|| {
+            cache
+                .previews
+                .values()
+                .find(|preview| {
+                    cached_preview_is_fresh(preview)
+                        && install_request_matches_preview(request, preview)
+                })
+                .cloned()
+        })
+}
+
+fn cached_preview_is_fresh(preview: &GithubMarketplacePreview) -> bool {
+    cache_is_fresh(Some(&preview.cached_at))
+}
+
+fn install_request_matches_preview(
+    request: &GithubMarketplaceInstallRequest,
+    preview: &GithubMarketplacePreview,
+) -> bool {
+    request
+        .repo_full_name
+        .eq_ignore_ascii_case(&preview.repo_full_name)
+        && request
+            .candidate_id
+            .as_ref()
+            .map(|value| value.eq_ignore_ascii_case(&preview.candidate_id))
+            .unwrap_or(true)
+        && request
+            .candidate_path
+            .as_ref()
+            .map(|value| value.eq_ignore_ascii_case(&preview.candidate_path))
+            .unwrap_or(true)
+        && request
+            .preview_commit_sha
+            .as_ref()
+            .map(|value| value == &preview.commit_sha)
+            .unwrap_or(true)
+        && optional_path_matches(&request.skill_markdown_path, &preview.skill_markdown_path)
+        && optional_path_matches(&request.skill_json_path, &preview.skill_json_path)
+        && optional_path_matches(&request.readme_path, &preview.readme_path)
+}
+
+fn optional_path_matches(requested: &Option<String>, actual: &Option<String>) -> bool {
+    requested
+        .as_ref()
+        .map(|requested| {
+            actual
+                .as_ref()
+                .is_some_and(|actual| actual.eq_ignore_ascii_case(requested))
+        })
+        .unwrap_or(true)
 }
 
 fn write_github_marketplace_cache(
@@ -4148,6 +6398,15 @@ fn load_skills(workspace: &Path) -> Vec<SkillInfo> {
                     trust_state,
                     repo_full_name: source.as_ref().map(|source| source.repo_full_name.clone()),
                     source_url: source.as_ref().map(|source| source.repo_url.clone()),
+                    source_content_kind: source
+                        .as_ref()
+                        .map(|source| source.source_content_kind.clone()),
+                    source_candidate_id: source
+                        .as_ref()
+                        .and_then(|source| source.candidate_id.clone()),
+                    source_candidate_path: source
+                        .as_ref()
+                        .and_then(|source| source.candidate_path.clone()),
                 })
             }
             Err(error) => {
@@ -4178,6 +6437,9 @@ fn load_skills(workspace: &Path) -> Vec<SkillInfo> {
                     trust_state: "invalid".to_string(),
                     repo_full_name: None,
                     source_url: None,
+                    source_content_kind: None,
+                    source_candidate_id: None,
+                    source_candidate_path: None,
                 });
             }
         }
@@ -4477,6 +6739,222 @@ fn run_command_capture(cwd: &Path, program: &str, args: &[&str]) -> Result<Strin
     Err(detail)
 }
 
+fn prepare_prompt(
+    execution_workspace: &Path,
+    session_id: &str,
+    request: &RunAgentRequest,
+) -> Result<PreparedPrompt, String> {
+    let metrics = prompt_metrics(
+        Path::new(&request.workspace_path),
+        &request.prompt,
+        &request.skills,
+    );
+    let prompts_dir = execution_workspace.join(".agentboard").join("prompts");
+    fs::create_dir_all(&prompts_dir).map_err(to_error)?;
+    let prompts_ignore = prompts_dir.join(".gitignore");
+    if !prompts_ignore.exists() {
+        fs::write(&prompts_ignore, "*\n!.gitignore\n").map_err(to_error)?;
+    }
+
+    let sanitized_prompt = redact_github_tokens(&request.prompt);
+    let prompt_file_path = prompts_dir.join(format!("{session_id}.md"));
+    let selected_skills = if metrics.selected_skill_metadata.is_empty() {
+        "- None".to_string()
+    } else {
+        metrics
+            .selected_skill_metadata
+            .iter()
+            .map(|skill| format!("- {skill}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let target_path = request
+        .target_path
+        .clone()
+        .unwrap_or_else(|| execution_workspace.to_string_lossy().to_string());
+    let prompt_document = format!(
+        "# AgentBoard deployment prompt\n\n\
+- Session ID: {session_id}\n\
+- Timestamp: {timestamp}\n\
+- Target type: {target_type}\n\
+- Target label: {target_label}\n\
+- Target path: {target_path}\n\
+- Run mode: {run_mode}\n\
+- Provider: {provider}\n\
+- Model: {model}\n\
+- Prompt characters: {prompt_characters}\n\
+- Prompt bytes (UTF-8): {prompt_bytes}\n\
+- Selected skill count: {selected_skill_count}\n\
+- Selected skill content characters: {selected_skill_characters}\n\
+- Source note: This prompt was written by AgentBoard to avoid Windows command-line length limits.\n\n\
+## Selected skills\n\n\
+{selected_skills}\n\n\
+## Full generated instructions\n\n\
+{prompt_start}\n\
+{sanitized_prompt}\n",
+        timestamp = now_iso(),
+        target_type = prompt_metadata_value(request.target_type.as_deref().unwrap_or("workspace")),
+        target_label = prompt_metadata_value(
+            request
+                .target_label
+                .as_deref()
+                .or(request.node_name.as_deref())
+                .unwrap_or(&request.workspace_name)
+        ),
+        target_path = prompt_metadata_value(&target_path),
+        run_mode = prompt_metadata_value(&request.run_mode),
+        provider = prompt_metadata_value(&request.agent),
+        model =
+            prompt_metadata_value(request.model.as_deref().unwrap_or("default CLI configuration")),
+        prompt_characters = metrics.character_count,
+        prompt_bytes = metrics.byte_count,
+        selected_skill_count = metrics.selected_skill_count,
+        selected_skill_characters = metrics.selected_skill_character_count,
+        prompt_start = PROMPT_CONTENT_START,
+    );
+    fs::write(&prompt_file_path, prompt_document.as_bytes()).map_err(to_error)?;
+
+    let exceeds_argument_budget = metrics.character_count > PROMPT_ARGUMENT_SAFE_CHARACTER_LIMIT
+        || metrics.byte_count > PROMPT_ARGUMENT_SAFE_BYTE_LIMIT;
+    let conversational_provider = matches!(
+        request.agent.as_str(),
+        "codex" | "claude" | "gemini" | "aider"
+    );
+    let use_file_transport = request.agent == "codex"
+        || exceeds_argument_budget
+        || (conversational_provider && metrics.has_github_skill);
+    let relative_prompt_path = format!(".agentboard/prompts/{session_id}.md");
+    let bootstrap_prompt = format!(
+        "Read the full AgentBoard deployment instructions from {relative_prompt_path} and follow them exactly. Report if the file cannot be read."
+    );
+
+    let mut script_file_path = None;
+    let invocation_prompt = if use_file_transport {
+        match request.agent.as_str() {
+            "powershell" => {
+                let path = prompts_dir.join(format!("{session_id}.ps1"));
+                fs::write(&path, sanitized_prompt.as_bytes()).map_err(to_error)?;
+                script_file_path = Some(path);
+                String::new()
+            }
+            "cmd" => {
+                let path = prompts_dir.join(format!("{session_id}.cmd"));
+                fs::write(&path, sanitized_prompt.as_bytes()).map_err(to_error)?;
+                script_file_path = Some(path);
+                String::new()
+            }
+            _ => bootstrap_prompt.clone(),
+        }
+    } else {
+        sanitized_prompt
+    };
+
+    Ok(PreparedPrompt {
+        prompt_file_path,
+        invocation_prompt,
+        transport: if use_file_transport {
+            "file".to_string()
+        } else {
+            "argument".to_string()
+        },
+        bootstrap_character_count: if use_file_transport {
+            bootstrap_prompt.chars().count()
+        } else {
+            0
+        },
+        script_file_path,
+        metrics,
+    })
+}
+
+fn prompt_metrics(workspace: &Path, prompt: &str, selected_skills: &[String]) -> PromptMetrics {
+    let installed_skills = load_skills(workspace);
+    let mut seen = HashSet::new();
+    let mut selected_skill_character_count = 0;
+    let mut has_github_skill = false;
+    let mut selected_skill_metadata = Vec::new();
+
+    for selected_name in selected_skills {
+        let normalized = selected_name.trim().to_ascii_lowercase();
+        if normalized.is_empty() || !seen.insert(normalized) {
+            continue;
+        }
+        if let Some(skill) = installed_skills
+            .iter()
+            .find(|skill| skill.name.eq_ignore_ascii_case(selected_name))
+        {
+            selected_skill_character_count += skill.markdown.chars().count();
+            has_github_skill |= skill.manifest.source == "github";
+            let provenance = if skill.manifest.source == "github" {
+                format!(
+                    "GitHub {}{}",
+                    skill
+                        .repo_full_name
+                        .as_deref()
+                        .unwrap_or("unknown repository"),
+                    skill
+                        .source_candidate_path
+                        .as_deref()
+                        .map(|path| format!(" at {path}"))
+                        .unwrap_or_default()
+                )
+            } else {
+                format!("local {}", skill.path)
+            };
+            selected_skill_metadata.push(format!(
+                "{} (display name: {}; source: {provenance}; content characters: {})",
+                skill.name,
+                skill.manifest.title,
+                skill.markdown.chars().count()
+            ));
+        } else {
+            selected_skill_metadata.push(format!("{selected_name} (metadata unavailable)"));
+        }
+    }
+
+    PromptMetrics {
+        character_count: prompt.chars().count(),
+        byte_count: prompt.len(),
+        selected_skill_count: seen.len(),
+        selected_skill_character_count,
+        has_github_skill,
+        selected_skill_metadata,
+    }
+}
+
+fn prompt_metadata_value(value: &str) -> String {
+    value
+        .replace('\r', " ")
+        .replace('\n', " ")
+        .trim()
+        .to_string()
+}
+
+fn redact_github_tokens(prompt: &str) -> String {
+    const PREFIXES: [&str; 6] = ["github_pat_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_"];
+    let mut output = prompt.to_string();
+    for prefix in PREFIXES {
+        let mut search_from = 0;
+        loop {
+            let Some(relative_start) = output[search_from..].find(prefix) else {
+                break;
+            };
+            let start = search_from + relative_start;
+            let end = output[start..]
+                .char_indices()
+                .take_while(|(_, character)| {
+                    character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                })
+                .last()
+                .map(|(index, character)| start + index + character.len_utf8())
+                .unwrap_or(start + prefix.len());
+            output.replace_range(start..end, "[REDACTED_GITHUB_TOKEN]");
+            search_from = start + "[REDACTED_GITHUB_TOKEN]".len();
+        }
+    }
+    output
+}
+
 fn agent_invocation(
     agent: &str,
     prompt: &str,
@@ -4527,6 +7005,31 @@ fn agent_invocation(
     }
 }
 
+fn agent_invocation_from_script(
+    agent: &str,
+    script_file_path: &Path,
+    run_mode: &str,
+) -> Result<(String, Vec<String>), String> {
+    let script = script_file_path.to_string_lossy().to_string();
+    match agent {
+        "powershell" => Ok((
+            "powershell".to_string(),
+            vec![
+                "-NoProfile".to_string(),
+                "-ExecutionPolicy".to_string(),
+                "Bypass".to_string(),
+                "-File".to_string(),
+                script,
+            ],
+        )),
+        "cmd" => Ok((
+            "cmd".to_string(),
+            vec!["/D".to_string(), "/S".to_string(), "/C".to_string(), script],
+        )),
+        _ => agent_invocation(agent, &script, run_mode),
+    }
+}
+
 fn spawn_reader<R: std::io::Read + Send + 'static>(
     session_id: String,
     stream: &str,
@@ -4552,11 +7055,16 @@ fn finish_session(
     mut message: Option<String>,
     log_file: &Arc<Mutex<File>>,
     status_sink: &StatusSink,
+    review_capture: Option<ReviewCapture>,
 ) {
     let mut final_status = requested_status.to_string();
     let mut final_info = None;
+    let mut run_mode = "edit".to_string();
+    let mut environment_blocker = None;
     if let Ok(mut controls) = sessions.lock() {
         if let Some(control) = controls.get_mut(session_id) {
+            run_mode = control.info.run_mode.clone();
+            environment_blocker = control.info.environment_blocker.clone();
             if control.stop_requested {
                 final_status = "stopped".to_string();
                 message = Some("Session stopped by user".to_string());
@@ -4570,17 +7078,47 @@ fn finish_session(
     }
     if let Some(info) = final_info {
         persist_session_metadata(log_file, &info);
+        if let Some(capture) = review_capture {
+            if let Err(error) =
+                finalize_agent_review(&capture, &info.status, info.finished_at.as_deref())
+            {
+                write_log(
+                    log_file,
+                    &format!("[system] Agent result review generation failed: {error}"),
+                );
+            }
+        }
     }
     status_sink(AgentStatusEvent {
         session_id: session_id.to_string(),
+        run_mode,
         status: final_status,
         exit_code,
         message,
+        environment_blocker,
     });
 }
 
+fn set_session_environment_blocker(
+    sessions: &Arc<Mutex<HashMap<String, SessionControl>>>,
+    session_id: &str,
+    blocker: EnvironmentBlocker,
+) {
+    if let Ok(mut controls) = sessions.lock() {
+        if let Some(control) = controls.get_mut(session_id) {
+            control.info.environment_blocker = Some(blocker);
+        }
+    }
+}
+
 fn persist_session_metadata(log_file: &Arc<Mutex<File>>, info: &SessionInfo) {
-    if let Ok(metadata) = serde_json::to_string(info) {
+    let mut persisted = info.clone();
+    persisted.prompt = persisted
+        .prompt_file_path
+        .as_deref()
+        .map(|path| format!("[prompt stored separately at {path}]"))
+        .unwrap_or_else(|| "[prompt omitted from session log metadata]".to_string());
+    if let Ok(metadata) = serde_json::to_string(&persisted) {
         write_log(log_file, &format!("[system] session-meta={metadata}"));
     }
 }
@@ -4659,6 +7197,14 @@ fn now_iso() -> String {
 
 fn default_edit_run_mode() -> String {
     "edit".to_string()
+}
+
+fn default_direct_prompt_transport() -> String {
+    "argument".to_string()
+}
+
+fn default_source_content_kind() -> String {
+    "formal_skill".to_string()
 }
 
 fn sanitize_slug(value: &str) -> String {
@@ -4753,6 +7299,31 @@ mod tests {
             skills: vec!["runtime-test-skill".to_string()],
             use_worktree: false,
             allow_shared_workspace: true,
+            model: None,
+            target_type: None,
+            target_path: None,
+            target_label: None,
+            deployment_id: None,
+        }
+    }
+
+    fn codex_request(workspace: &Path, prompt: &str, skills: Vec<String>) -> RunAgentRequest {
+        RunAgentRequest {
+            workspace_path: workspace.to_string_lossy().to_string(),
+            workspace_name: "Prompt Transport".to_string(),
+            agent: "codex".to_string(),
+            prompt: prompt.to_string(),
+            run_mode: "inspect_only".to_string(),
+            node_id: Some("prompt-transport".to_string()),
+            node_name: Some("Prompt transport".to_string()),
+            skills,
+            use_worktree: false,
+            allow_shared_workspace: true,
+            model: Some("default".to_string()),
+            target_type: Some("workspace".to_string()),
+            target_path: Some(workspace.to_string_lossy().to_string()),
+            target_label: Some("Prompt Transport".to_string()),
+            deployment_id: None,
         }
     }
 
@@ -4777,6 +7348,109 @@ mod tests {
         }
     }
 
+    fn github_tree_blob(path: &str) -> GithubTreeItemApi {
+        GithubTreeItemApi {
+            path: path.to_string(),
+            item_type: "blob".to_string(),
+            sha: format!("sha-{}", sanitize_slug(path)),
+            size: Some(64),
+        }
+    }
+
+    fn github_repo_fixture(commit_sha: &str) -> GithubMarketplaceRepo {
+        GithubMarketplaceRepo {
+            id: 42,
+            full_name: "example/engineering-skill".to_string(),
+            name: "engineering-skill".to_string(),
+            owner: "example".to_string(),
+            description: "Engineering review instructions".to_string(),
+            html_url: "https://github.com/example/engineering-skill".to_string(),
+            default_branch: "main".to_string(),
+            stars: 120,
+            forks: 12,
+            language: Some("Markdown".to_string()),
+            license: Some("MIT".to_string()),
+            updated_at: "2026-06-10T00:00:00Z".to_string(),
+            topics: vec!["agent-skill".to_string()],
+            detected_skill_status: "formal_skill".to_string(),
+            detected_files: vec!["SKILL.md".to_string(), "skill.json".to_string()],
+            quality_score: 90,
+            quality_label: "high".to_string(),
+            installed_skill_name: None,
+            install_status: "not_installed".to_string(),
+            latest_commit_sha: Some(commit_sha.to_string()),
+            preview_cached: false,
+            candidates: Vec::new(),
+        }
+    }
+
+    fn github_candidate_fixture() -> GithubMarketplaceCandidate {
+        GithubMarketplaceCandidate {
+            id: "formal:skills/react".to_string(),
+            repo_full_name: "example/engineering-skill".to_string(),
+            repo_url: "https://github.com/example/engineering-skill".to_string(),
+            default_branch: "main".to_string(),
+            commit_sha: Some("commit-one".to_string()),
+            candidate_name: "react".to_string(),
+            candidate_path: "skills/react".to_string(),
+            skill_markdown_path: Some("skills/react/SKILL.md".to_string()),
+            skill_json_path: Some("skills/react/skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            formal_skill: true,
+            readme_only: false,
+            installable: true,
+            detection_warnings: Vec::new(),
+            nested: true,
+            detected_files: vec![
+                "skills/react/SKILL.md".to_string(),
+                "skills/react/skill.json".to_string(),
+            ],
+            installed_skill_name: None,
+            install_status: "not_installed".to_string(),
+            preview_cached: false,
+        }
+    }
+
+    fn github_preview_fixture() -> GithubMarketplacePreview {
+        let candidate = github_candidate_fixture();
+        let mut repo = github_repo_fixture("commit-one");
+        repo.candidates = vec![candidate.clone()];
+        let mut content_shas = HashMap::new();
+        content_shas.insert(
+            "skills/react/SKILL.md".to_string(),
+            "sha-skills-react-skill-md".to_string(),
+        );
+        GithubMarketplacePreview {
+            repo,
+            candidate: candidate.clone(),
+            files: vec![GithubMarketplaceFile {
+                path: "skills/react/SKILL.md".to_string(),
+                kind: "skill_markdown".to_string(),
+                content: "# React Skill\nUse React patterns.".to_string(),
+                size: 32,
+                sha: "sha-skills-react-skill-md".to_string(),
+            }],
+            formal_skill: true,
+            readme_only: false,
+            installable: true,
+            recommended_name: "react".to_string(),
+            warning: None,
+            cached: false,
+            repo_full_name: "example/engineering-skill".to_string(),
+            commit_sha: "commit-one".to_string(),
+            candidate_id: candidate.id,
+            candidate_path: "skills/react".to_string(),
+            skill_markdown_path: Some("skills/react/SKILL.md".to_string()),
+            skill_json_path: Some("skills/react/skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            content_shas,
+            cached_at: now_iso(),
+            rate_limit: GithubRateLimit::default(),
+        }
+    }
+
     #[test]
     fn github_rate_limit_error_is_human_readable() {
         let now = 1_700_000_000;
@@ -4796,6 +7470,682 @@ mod tests {
         assert!(error.contains("GitHub core API limit reached"));
         assert!(error.contains("Add a GitHub token"));
         assert!(!error.contains(&reset));
+    }
+
+    #[test]
+    fn github_marketplace_discovers_nested_formal_skill_candidate() {
+        let tree = vec![
+            github_tree_blob("skills/react/SKILL.md"),
+            github_tree_blob("skills/react/skill.json"),
+            github_tree_blob("node_modules/ignored/SKILL.md"),
+        ];
+        let candidates = detect_skill_candidates(
+            &tree,
+            "example/skills",
+            "https://github.com/example/skills",
+            "main",
+            Some("commit-one"),
+        );
+        assert_eq!(candidates.len(), 1);
+        let candidate = &candidates[0];
+        assert_eq!(candidate.id, "formal:skills/react");
+        assert_eq!(candidate.candidate_path, "skills/react");
+        assert_eq!(
+            candidate.skill_markdown_path.as_deref(),
+            Some("skills/react/SKILL.md")
+        );
+        assert_eq!(
+            candidate.skill_json_path.as_deref(),
+            Some("skills/react/skill.json")
+        );
+        assert!(candidate.formal_skill);
+        assert!(candidate.nested);
+        assert!(candidate.installable);
+    }
+
+    #[test]
+    fn github_marketplace_discovers_multiple_candidates_in_one_repo() {
+        let tree = vec![
+            github_tree_blob("skills/react/SKILL.md"),
+            github_tree_blob("skills/fastapi/SKILL.md"),
+        ];
+        let candidates = detect_skill_candidates(
+            &tree,
+            "example/skills",
+            "https://github.com/example/skills",
+            "main",
+            Some("commit-one"),
+        );
+        let paths = candidates
+            .iter()
+            .map(|candidate| candidate.candidate_path.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(paths, vec!["skills/fastapi", "skills/react"]);
+        assert!(candidates.iter().all(|candidate| candidate.installable));
+    }
+
+    #[test]
+    fn github_marketplace_classifies_readme_only_as_draft() {
+        let tree = vec![github_tree_blob("README.md")];
+        let candidates = detect_skill_candidates(
+            &tree,
+            "example/readme-only",
+            "https://github.com/example/readme-only",
+            "main",
+            Some("commit-one"),
+        );
+        assert_eq!(candidates.len(), 1);
+        let candidate = &candidates[0];
+        assert_eq!(candidate.source_content_kind, "readme_draft");
+        assert!(candidate.readme_only);
+        assert!(!candidate.formal_skill);
+        assert_eq!(candidate.readme_path.as_deref(), Some("README.md"));
+        assert_eq!(
+            detected_skill_status(&candidate_detected_files(&candidates)),
+            "readme_only"
+        );
+    }
+
+    #[test]
+    fn github_marketplace_install_writes_formal_source_metadata() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        let repo = github_repo_fixture("commit-one");
+        let fetched = FetchedGithubSkill {
+            markdown: "# Engineering Skill\nInspect before editing.".to_string(),
+            markdown_path: "skills/react/SKILL.md".to_string(),
+            skill_json: Some(serde_json::json!({
+                "title": "Engineering Skill",
+                "description": "Remote description"
+            })),
+            skill_json_path: Some("skills/react/skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            candidate_id: "formal:skills/react".to_string(),
+            candidate_path: "skills/react".to_string(),
+        };
+        let destination = root.join("engineering-skill");
+        write_github_skill_install(
+            &destination,
+            "engineering-skill",
+            &repo,
+            &fetched,
+            "untrusted",
+            None,
+        )
+        .expect("formal install");
+        assert!(destination.join("SKILL.md").is_file());
+        assert!(destination.join("skill.json").is_file());
+        assert!(destination.join("source.json").is_file());
+        let source = read_github_skill_source(&destination).expect("source metadata");
+        assert_eq!(source.source_content_kind, "formal_skill");
+        assert_eq!(source.candidate_path.as_deref(), Some("skills/react"));
+        assert_eq!(
+            source.skill_markdown_path.as_deref(),
+            Some("skills/react/SKILL.md")
+        );
+        assert!(source.warning.contains("Remote code was not executed"));
+    }
+
+    #[test]
+    fn github_marketplace_readme_draft_install_writes_warning() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        let repo = github_repo_fixture("commit-one");
+        let fetched = FetchedGithubSkill {
+            markdown: "# Repository README\nGeneral project notes.".to_string(),
+            markdown_path: "README.md".to_string(),
+            skill_json: None,
+            skill_json_path: None,
+            readme_path: Some("README.md".to_string()),
+            source_content_kind: "readme_draft".to_string(),
+            candidate_id: "readme:.".to_string(),
+            candidate_path: ".".to_string(),
+        };
+        let destination = root.join("readme-draft");
+        write_github_skill_install(
+            &destination,
+            "readme-draft",
+            &repo,
+            &fetched,
+            "untrusted",
+            None,
+        )
+        .expect("readme draft install");
+        let source = read_github_skill_source(&destination).expect("source metadata");
+        assert_eq!(source.source_content_kind, "readme_draft");
+        assert_eq!(source.readme_path.as_deref(), Some("README.md"));
+        assert_eq!(
+            source.warning,
+            "Draft created from repository README. Review and edit before use."
+        );
+    }
+
+    #[test]
+    fn github_marketplace_cached_preview_can_satisfy_matching_install() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let preview = github_preview_fixture();
+        let mut cache = GithubMarketplaceCache::default();
+        cache.updated_at = Some(now_iso());
+        cache.previews.insert(
+            github_preview_cache_key(
+                &root,
+                "example/engineering-skill",
+                Some("formal:skills/react"),
+            ),
+            preview.clone(),
+        );
+        let request = GithubMarketplaceInstallRequest {
+            workspace_path: root.to_string_lossy().to_string(),
+            repo_full_name: "example/engineering-skill".to_string(),
+            candidate_id: Some("formal:skills/react".to_string()),
+            candidate_path: Some("skills/react".to_string()),
+            preview_commit_sha: Some("commit-one".to_string()),
+            skill_markdown_path: Some("skills/react/SKILL.md".to_string()),
+            skill_json_path: Some("skills/react/skill.json".to_string()),
+            readme_path: None,
+            install_name: Some("react".to_string()),
+            allow_readme_draft: false,
+            duplicate_action: "cancel".to_string(),
+        };
+        let cached =
+            cached_preview_for_install(&cache, &root, &request).expect("matching cached preview");
+        assert_eq!(cached.candidate_id, "formal:skills/react");
+        assert_eq!(cached.commit_sha, "commit-one");
+    }
+
+    #[test]
+    fn codex_large_prompt_uses_file_transport() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let large_prompt = format!("Inspect only.\n{}", "large prompt line\n".repeat(1_500));
+        assert!(large_prompt.chars().count() > PROMPT_ARGUMENT_SAFE_CHARACTER_LIMIT);
+
+        let request = codex_request(&root, &large_prompt, Vec::new());
+        let prepared =
+            prepare_prompt(&root, "session-large-prompt", &request).expect("prepare prompt");
+        assert_eq!(prepared.transport, "file");
+        assert!(prepared.prompt_file_path.is_file());
+        assert!(prepared
+            .invocation_prompt
+            .contains(".agentboard/prompts/session-large-prompt.md"));
+        assert!(!prepared.invocation_prompt.contains("large prompt line"));
+        assert!(
+            prepared.bootstrap_character_count < PROMPT_ARGUMENT_SAFE_CHARACTER_LIMIT,
+            "bootstrap prompt must remain command-line safe"
+        );
+
+        let (_, args) = agent_invocation("codex", &prepared.invocation_prompt, "inspect_only")
+            .expect("Codex invocation");
+        assert!(!args.iter().any(|argument| argument == &large_prompt));
+        assert!(args
+            .iter()
+            .any(|argument| { argument.contains(".agentboard/prompts/session-large-prompt.md") }));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--sandbox", "read-only"]));
+
+        let document =
+            fs::read_to_string(&prepared.prompt_file_path).expect("prompt file should read");
+        assert!(document.contains(&large_prompt));
+        assert!(document.contains("Session ID: session-large-prompt"));
+        assert!(document.contains(
+            "This prompt was written by AgentBoard to avoid Windows command-line length limits."
+        ));
+    }
+
+    #[test]
+    fn github_skill_prompt_transport_deduplicates_skill_metrics() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let large_skill_markdown =
+            format!("# Superpowers\n{}", "Follow the workflow.\n".repeat(900));
+        let repo = github_repo_fixture("commit-superpowers");
+        let fetched = FetchedGithubSkill {
+            markdown: large_skill_markdown.clone(),
+            markdown_path: "skills/superpowers/SKILL.md".to_string(),
+            skill_json: Some(serde_json::json!({
+                "title": "superpowers",
+                "description": "Large workflow skill"
+            })),
+            skill_json_path: Some("skills/superpowers/skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            candidate_id: "formal:skills/superpowers".to_string(),
+            candidate_path: "skills/superpowers".to_string(),
+        };
+        let skill_dir = root.join(".agentboard").join("skills").join("superpowers");
+        write_github_skill_install(&skill_dir, "superpowers", &repo, &fetched, "reviewed", None)
+            .expect("GitHub skill fixture");
+
+        let full_prompt = format!(
+            "Use this selected skill exactly once:\n{large_skill_markdown}\nEnd selected skill."
+        );
+        let mut request = codex_request(
+            &root,
+            &full_prompt,
+            vec!["superpowers".to_string(), "superpowers".to_string()],
+        );
+        request.agent = "claude".to_string();
+        let prepared =
+            prepare_prompt(&root, "session-github-skill", &request).expect("prepare prompt");
+        assert_eq!(prepared.transport, "file");
+        assert_eq!(prepared.metrics.selected_skill_count, 1);
+        assert_eq!(
+            prepared.metrics.selected_skill_character_count,
+            large_skill_markdown.chars().count()
+        );
+        let document =
+            fs::read_to_string(&prepared.prompt_file_path).expect("prompt file should read");
+        assert_eq!(document.matches("# Superpowers").count(), 1);
+        assert_eq!(
+            document
+                .matches("superpowers (display name: superpowers")
+                .count(),
+            1
+        );
+        assert!(document.contains("GitHub example/engineering-skill at skills/superpowers"));
+    }
+
+    #[test]
+    fn prompt_file_redacts_github_tokens() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let token = "github_pat_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let request = codex_request(
+            &root,
+            &format!("Inspect configuration containing {token}."),
+            Vec::new(),
+        );
+        let prepared =
+            prepare_prompt(&root, "session-token-redaction", &request).expect("prepare prompt");
+        let document =
+            fs::read_to_string(&prepared.prompt_file_path).expect("prompt file should read");
+        assert!(!document.contains(token));
+        assert!(document.contains("[REDACTED_GITHUB_TOKEN]"));
+    }
+
+    #[test]
+    fn inspect_build_task_returns_edit_mode_warning() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let result = deployment_preflight_impl(DeploymentPreflightRequest {
+            target_type: "workspace".to_string(),
+            workspace_path: root.to_string_lossy().to_string(),
+            target_path: root.to_string_lossy().to_string(),
+            provider: "codex".to_string(),
+            selected_skills: Vec::new(),
+            task: "Build a calculator application for Windows".to_string(),
+            run_mode: "inspect_only".to_string(),
+            write_files_permission: true,
+            concerned_files: Vec::new(),
+        })
+        .expect("inspect preflight");
+        assert!(result.warnings.iter().any(|warning| {
+            warning.code == "edit_task_in_inspect_mode"
+                && warning.message
+                    == "Build tasks require edit mode. Inspect-only will only report findings."
+        }));
+    }
+
+    #[test]
+    fn run_mode_propagation_flow() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+
+        let persistence_root = root.join(".agentboard").join("test-persistence");
+        fs::create_dir_all(&persistence_root).expect("persistence root");
+        ensure_global_files(&persistence_root).expect("global files");
+        let mut deployment = test_deployment("deployment-edit", "profile-edit", &root);
+        deployment.run_mode = "edit".to_string();
+        deployment.prompt =
+            "Run mode: edit.\nBuild a calculator for windows inside the target.".to_string();
+        save_deployment_impl(&persistence_root, deployment.clone(), false)
+            .expect("save edit deployment");
+        let restored = read_deployments_file(&persistence_root).expect("reload deployments");
+        assert_eq!(restored.deployments[0].run_mode, "edit");
+
+        let edit_preflight = deployment_preflight_impl(DeploymentPreflightRequest {
+            target_type: "workspace".to_string(),
+            workspace_path: root.to_string_lossy().to_string(),
+            target_path: root.to_string_lossy().to_string(),
+            provider: "powershell".to_string(),
+            selected_skills: Vec::new(),
+            task: "build a calculator for windows".to_string(),
+            run_mode: "edit".to_string(),
+            write_files_permission: true,
+            concerned_files: Vec::new(),
+        })
+        .expect("edit preflight");
+        assert_eq!(edit_preflight.requested_run_mode, "edit");
+        assert!(edit_preflight
+            .blockers
+            .iter()
+            .all(|blocker| blocker.code != "empty_target_requires_inspection"));
+        assert!(edit_preflight.blockers.is_empty());
+
+        let blocked_edit = deployment_preflight_impl(DeploymentPreflightRequest {
+            target_type: "workspace".to_string(),
+            workspace_path: root.to_string_lossy().to_string(),
+            target_path: root.to_string_lossy().to_string(),
+            provider: "powershell".to_string(),
+            selected_skills: Vec::new(),
+            task: "build a calculator for windows".to_string(),
+            run_mode: "edit".to_string(),
+            write_files_permission: false,
+            concerned_files: Vec::new(),
+        })
+        .expect("blocked edit preflight");
+        assert_eq!(blocked_edit.requested_run_mode, "edit");
+        assert!(blocked_edit.blockers.iter().any(|blocker| {
+            blocker.code == "write_permission_required"
+                && blocker.message.starts_with("Edit mode cannot run because")
+        }));
+
+        let inspect_preflight = deployment_preflight_impl(DeploymentPreflightRequest {
+            target_type: "workspace".to_string(),
+            workspace_path: root.to_string_lossy().to_string(),
+            target_path: root.to_string_lossy().to_string(),
+            provider: "powershell".to_string(),
+            selected_skills: Vec::new(),
+            task: "build a calculator for windows".to_string(),
+            run_mode: "inspect_only".to_string(),
+            write_files_permission: true,
+            concerned_files: Vec::new(),
+        })
+        .expect("inspect preflight");
+        assert_eq!(inspect_preflight.requested_run_mode, "inspect_only");
+        assert!(inspect_preflight
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "edit_task_in_inspect_mode"));
+
+        assert!(
+            validate_prompt_run_mode("Run mode: edit.\nCreate files inside scope.", "edit").is_ok()
+        );
+        assert!(
+            validate_prompt_run_mode("Run mode: inspect only.\nDo not edit files.", "edit")
+                .expect_err("mismatched prompt must fail")
+                .starts_with("RUN_MODE_MISMATCH:")
+        );
+
+        let state = AppState::default();
+        let output_sink: OutputSink = Arc::new(|_, _, _| {});
+        let status_sink: StatusSink = Arc::new(|_| {});
+        let inspect_workspace = root.join("inspect-case");
+        fs::create_dir_all(&inspect_workspace).expect("inspect workspace");
+        initialize_workspace(&inspect_workspace).expect("inspect workspace metadata");
+        let mut inspect_request = powershell_request(
+            &inspect_workspace,
+            "Inspect calculator smoke",
+            "Write-Output 'Inspect-only: build a calculator for windows'",
+        );
+        inspect_request.run_mode = "inspect_only".to_string();
+        let inspect_session = run_agent_core(
+            state.sessions.clone(),
+            inspect_request,
+            output_sink.clone(),
+            status_sink.clone(),
+        )
+        .expect("inspect session should start");
+        assert_eq!(inspect_session.run_mode, "inspect_only");
+        let inspect_finished = wait_for_status(
+            &state,
+            &inspect_session.id,
+            &["completed_inspection"],
+            Duration::from_secs(5),
+        );
+        assert_eq!(inspect_finished.status, "completed_inspection");
+        assert!(!inspect_workspace.join("calculator-smoke.txt").exists());
+
+        let edit_session = run_agent_core(
+            state.sessions.clone(),
+            powershell_request(
+                &root,
+                "Edit calculator smoke",
+                "Set-Content -LiteralPath calculator-smoke.txt -Value 'Calculator App'",
+            ),
+            output_sink.clone(),
+            status_sink.clone(),
+        )
+        .expect("edit session should start");
+        assert_eq!(edit_session.run_mode, "edit");
+        let edit_finished = wait_for_status(
+            &state,
+            &edit_session.id,
+            &["completed"],
+            Duration::from_secs(5),
+        );
+        assert_eq!(edit_finished.status, "completed");
+        assert_eq!(
+            fs::read_to_string(root.join("calculator-smoke.txt"))
+                .expect("calculator smoke file")
+                .trim(),
+            "Calculator App"
+        );
+
+        let mut invalid_status = deployment.clone();
+        invalid_status.status = "completed_inspection".to_string();
+        assert!(validate_deployment(&invalid_status).is_err());
+
+        let (_, edit_args) =
+            agent_invocation("codex", "short bootstrap", "edit").expect("Codex edit args");
+        assert!(edit_args
+            .windows(2)
+            .any(|pair| pair == ["--sandbox", "workspace-write"]));
+        let (_, inspect_args) = agent_invocation("codex", "short bootstrap", "inspect_only")
+            .expect("Codex inspect args");
+        assert!(inspect_args
+            .windows(2)
+            .any(|pair| pair == ["--sandbox", "read-only"]));
+    }
+
+    #[test]
+    fn environment_blocker_classification_flow() {
+        let winget = classify_environment_blocker(
+            "'winget' is not recognized as an internal or external command.",
+        )
+        .expect("winget blocker");
+        assert_eq!(winget.code, "missing_winget");
+        assert_eq!(winget.tool, "WinGet");
+
+        let winui = classify_environment_blocker(
+            "No templates found matching: 'winui'.\nTo list installed templates, run dotnet new list.",
+        )
+        .expect("WinUI template blocker");
+        assert_eq!(winui.code, "missing_winui_template");
+        assert!(winui.cause.contains("WinUI"));
+        assert!(winui
+            .fallback_options
+            .iter()
+            .any(|option| option.contains("HTML/CSS/JS")));
+
+        let first_run = classify_environment_blocker(
+            "System.UnauthorizedAccessException: Access to the path 'C:\\Users\\tester\\.dotnet' is denied while dotnet first time experience runs.",
+        )
+        .expect(".NET first-run blocker");
+        assert_eq!(first_run.code, "dotnet_first_run_access");
+
+        let workload = classify_environment_blocker(
+            "The required Windows App SDK workload is not installed for dotnet/MSBuild.",
+        )
+        .expect("workload blocker");
+        assert_eq!(workload.code, "missing_sdk_workload_template");
+
+        let visual_studio = classify_environment_blocker(
+            "Visual Studio required workload Microsoft.VisualStudio.Workload.ManagedDesktop was not found.",
+        )
+        .expect("Visual Studio workload blocker");
+        assert_eq!(visual_studio.code, "missing_visual_studio_workload");
+
+        let permission = classify_environment_blocker(
+            "Installation of the Windows SDK requires elevation. Access is denied.",
+        )
+        .expect("environment permission blocker");
+        assert_eq!(permission.code, "environment_setup_permission");
+
+        assert!(classify_environment_blocker(
+            "Process exited with status exit code: 1 because the application test failed."
+        )
+        .is_none());
+        assert!(windows_app_task("Build a calculator for Windows"));
+        assert!(windows_app_task("Create a WinUI desktop app"));
+        assert!(!windows_app_task("Refactor the API parser"));
+
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let state = AppState::default();
+        let request = powershell_request(
+            &root,
+            "Environment blocker smoke",
+            "Write-Output \"No templates found matching: 'winui'\"",
+        );
+        let session = run_agent_core(
+            state.sessions.clone(),
+            request,
+            Arc::new(|_, _, _| {}),
+            Arc::new(|_| {}),
+        )
+        .expect("environment blocker session should start");
+        let finished = wait_for_status(
+            &state,
+            &session.id,
+            &["blocked_environment"],
+            Duration::from_secs(5),
+        );
+        assert_eq!(finished.status, "blocked_environment");
+        assert_eq!(
+            finished
+                .environment_blocker
+                .as_ref()
+                .map(|blocker| blocker.code.as_str()),
+            Some("missing_winui_template")
+        );
+
+        let failed = run_agent_core(
+            state.sessions.clone(),
+            powershell_request(
+                &root,
+                "Generic failure smoke",
+                "Write-Error 'Application test failed'; exit 7",
+            ),
+            Arc::new(|_, _, _| {}),
+            Arc::new(|_| {}),
+        )
+        .expect("generic failure session should start");
+        let failed = wait_for_status(&state, &failed.id, &["failed"], Duration::from_secs(5));
+        assert_eq!(failed.status, "failed");
+        assert!(failed.environment_blocker.is_none());
+    }
+
+    #[test]
+    fn diagnostics_do_not_export_prompt_file_contents() {
+        let root = test_root();
+        fs::create_dir_all(root.join(".agentboard").join("prompts")).expect("prompt directory");
+        let _cleanup = Cleanup(root.clone());
+        let sentinel = "AGENTBOARD_PRIVATE_PROMPT_SENTINEL";
+        fs::write(
+            root.join(".agentboard")
+                .join("prompts")
+                .join("session-private.md"),
+            sentinel,
+        )
+        .expect("prompt fixture");
+        let diagnostics = export_diagnostics_impl(DiagnosticsExportRequest {
+            recent_errors: Vec::new(),
+            workspace_path: Some(root.to_string_lossy().to_string()),
+            issue_notes: None,
+        })
+        .expect("diagnostics export");
+        let report = fs::read_to_string(&diagnostics.path).expect("diagnostics report");
+        assert!(!report.contains(sentinel));
+        assert!(!report.contains("session-private.md"));
+        fs::remove_file(&diagnostics.path).expect("diagnostics cleanup");
+    }
+
+    #[test]
+    #[ignore = "requires an installed, authenticated Codex CLI and consumes one live request"]
+    fn codex_large_prompt_live_manual_verification() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("test root");
+        let _cleanup = Cleanup(root.clone());
+        initialize_workspace(&root).expect("workspace metadata");
+        let large_skill_content = format!(
+            "# superpowers\n{}",
+            "Inspect without editing.\n".repeat(500)
+        );
+        let repo = github_repo_fixture("commit-live-prompt");
+        let fetched = FetchedGithubSkill {
+            markdown: large_skill_content.clone(),
+            markdown_path: "skills/superpowers/SKILL.md".to_string(),
+            skill_json: Some(serde_json::json!({
+                "title": "superpowers",
+                "description": "Live prompt transport fixture"
+            })),
+            skill_json_path: Some("skills/superpowers/skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            candidate_id: "formal:skills/superpowers".to_string(),
+            candidate_path: "skills/superpowers".to_string(),
+        };
+        write_github_skill_install(
+            &root.join(".agentboard").join("skills").join("superpowers"),
+            "superpowers",
+            &repo,
+            &fetched,
+            "reviewed",
+            None,
+        )
+        .expect("GitHub skill fixture");
+
+        let prompt = format!(
+            "Run mode: inspect only.\nDo not edit files.\nRead all instructions, then reply with AGENTBOARD_PROMPT_FILE_OK.\n\nEnabled skill:\n{large_skill_content}"
+        );
+        let state = AppState::default();
+        let session = run_agent_core(
+            state.sessions.clone(),
+            codex_request(&root, &prompt, vec!["superpowers".to_string()]),
+            Arc::new(|_, _, _| {}),
+            Arc::new(|_| {}),
+        )
+        .expect("Codex should spawn");
+        assert_eq!(session.prompt_transport, "file");
+        assert!(session
+            .prompt_file_path
+            .as_deref()
+            .is_some_and(|path| Path::new(path).is_file()));
+        let finished = wait_for_status(
+            &state,
+            &session.id,
+            &["completed_inspection", "failed"],
+            Duration::from_secs(120),
+        );
+        let log = fs::read_to_string(&session.log_path).expect("Codex session log");
+        assert!(!log.contains("The command line is too long"));
+        assert_eq!(
+            finished.status, "completed_inspection",
+            "Codex did not complete the live prompt-file check:\n{log}"
+        );
+        assert!(log.contains("AGENTBOARD_PROMPT_FILE_OK"));
+        assert!(log.contains("sandbox=read-only"));
+        assert!(!log.contains(&large_skill_content));
     }
 
     fn test_deployment(id: &str, profile_id: &str, workspace: &Path) -> AgentDeployment {
@@ -5053,6 +8403,9 @@ mod tests {
         assert_eq!(dedupe_log.matches("[stdout] LineA").count(), 1);
         assert_eq!(dedupe_log.matches("[stdout] LineB").count(), 1);
         assert_eq!(dedupe_log.matches("[system] Spawned").count(), 1);
+        assert!(!dedupe_log.contains("Write-Output \"LineA\"; Write-Output \"LineB\""));
+        assert!(dedupe_log.contains("prompt_file="));
+        assert!(dedupe_log.contains("prompt_characters="));
 
         let restored = load_session_history(workspace, "Multi-agent Runtime", Vec::new())
             .expect("completed sessions should restore");
@@ -5289,7 +8642,7 @@ mod tests {
         assert!(empty_edit_preflight
             .blockers
             .iter()
-            .any(|item| item.code == "empty_target_requires_inspection"));
+            .all(|item| item.code != "empty_target_requires_inspection"));
         assert!(empty_edit_preflight
             .blockers
             .iter()
@@ -5357,7 +8710,7 @@ mod tests {
             test_deployment("deployment-runtime", &profile.id, &onboarding_workspace);
         save_deployment_impl(&persistence_root, deployment.clone(), false)
             .expect("save deployment");
-        deployment.status = "completed".to_string();
+        deployment.status = "completed_inspection".to_string();
         deployment.session_id = Some("session-runtime".to_string());
         deployment.log_path = Some("runtime.log".to_string());
         deployment.updated_at = "201".to_string();
@@ -5366,7 +8719,10 @@ mod tests {
         let restored_deployments =
             read_deployments_file(&persistence_root).expect("restore deployments");
         assert_eq!(restored_deployments.deployments.len(), 1);
-        assert_eq!(restored_deployments.deployments[0].status, "completed");
+        assert_eq!(
+            restored_deployments.deployments[0].status,
+            "completed_inspection"
+        );
         assert_eq!(
             restored_deployments.deployments[0].session_id.as_deref(),
             Some("session-runtime")
@@ -5420,6 +8776,7 @@ mod tests {
             install_status: "not_installed".to_string(),
             latest_commit_sha: Some("commit-one".to_string()),
             preview_cached: false,
+            candidates: Vec::new(),
         };
         let fetched_v1 = FetchedGithubSkill {
             markdown: "# Engineering Skill\nInspect before editing.".to_string(),
@@ -5435,6 +8792,10 @@ mod tests {
                 }
             })),
             skill_json_path: Some("skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            candidate_id: "formal:.".to_string(),
+            candidate_path: ".".to_string(),
         };
         let installed_dir = marketplace_workspace
             .join(".agentboard")
@@ -5479,6 +8840,10 @@ mod tests {
             markdown_path: "SKILL.md".to_string(),
             skill_json: fetched_v1.skill_json.clone(),
             skill_json_path: Some("skill.json".to_string()),
+            readme_path: None,
+            source_content_kind: "formal_skill".to_string(),
+            candidate_id: "formal:.".to_string(),
+            candidate_path: ".".to_string(),
         };
         let source_v1 =
             read_github_skill_source(&installed_dir).expect("installed source metadata");
@@ -5575,6 +8940,13 @@ mod tests {
                     exit_code: None,
                     execution_path: workspace.to_string_lossy().to_string(),
                     worktree_path: None,
+                    prompt_file_path: None,
+                    prompt_transport: "argument".to_string(),
+                    prompt_character_count: 11,
+                    prompt_byte_count: 11,
+                    bootstrap_prompt_character_count: 0,
+                    selected_skill_character_count: 0,
+                    environment_blocker: None,
                 },
                 pid: Some(0),
                 stop_requested: false,
@@ -5633,6 +9005,297 @@ mod tests {
         verify_multi_agent_runtime(&multi_agent_workspace);
     }
 
+    fn review_test_workspace(case: &str) -> (PathBuf, Cleanup) {
+        let root = test_root().join(case);
+        fs::create_dir_all(&root).expect("review test workspace");
+        initialize_workspace(&root).expect("review workspace metadata");
+        let cleanup = Cleanup(root.clone());
+        (root, cleanup)
+    }
+
+    fn review_test_capture(workspace: &Path, session_id: &str) -> ReviewCapture {
+        capture_agent_review_before(
+            workspace,
+            workspace,
+            session_id,
+            Some("deployment-review-test".to_string()),
+            Some("workspace"),
+            Some(workspace.to_string_lossy().as_ref()),
+            "codex",
+            "100",
+            &workspace
+                .join(".agentboard")
+                .join("logs")
+                .join("review.log"),
+        )
+        .expect("capture review before state")
+    }
+
+    fn review_test_path(workspace: &Path, session_id: &str) -> PathBuf {
+        review_dir(workspace, session_id).join("review.json")
+    }
+
+    #[test]
+    fn agent_review_created_file_and_accept() {
+        let (workspace, _cleanup) = review_test_workspace("created");
+        let session_id = "session-review-created";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::write(workspace.join("hello.txt"), "hello from agent\n").expect("create hello");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        assert_eq!(review.review_status, "pending");
+        assert_eq!(review.changed_files.len(), 1);
+        let file = &review.changed_files[0];
+        assert_eq!(file.relative_path, "hello.txt");
+        assert_eq!(file.change_type, "created");
+        assert!(file
+            .diff_preview
+            .as_deref()
+            .unwrap_or("")
+            .contains("+hello from agent"));
+        let accepted = accept_agent_review_at(&review_test_path(&workspace, session_id), review)
+            .expect("accept review");
+        assert_eq!(accepted.review.review_status, "accepted");
+        let restored =
+            read_agent_review(&review_test_path(&workspace, session_id)).expect("read accepted");
+        assert_eq!(restored.review_status, "accepted");
+    }
+
+    #[test]
+    fn agent_review_modified_file_diff_and_revert() {
+        let (workspace, _cleanup) = review_test_workspace("modified");
+        fs::write(workspace.join("README.md"), "before\n").expect("seed readme");
+        let session_id = "session-review-modified";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::write(workspace.join("README.md"), "after\n").expect("modify readme");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        let file = &review.changed_files[0];
+        assert_eq!(file.change_type, "modified");
+        assert!(file
+            .diff_preview
+            .as_deref()
+            .unwrap_or("")
+            .contains("-before"));
+        assert!(file
+            .diff_preview
+            .as_deref()
+            .unwrap_or("")
+            .contains("+after"));
+        let result = revert_agent_review_at(&review_test_path(&workspace, session_id), review)
+            .expect("revert review");
+        assert!(result.conflicts.is_empty());
+        assert_eq!(result.review.review_status, "reverted");
+        assert_eq!(
+            fs::read_to_string(workspace.join("README.md")).expect("restored readme"),
+            "before\n"
+        );
+    }
+
+    #[test]
+    fn agent_review_deleted_file_and_revert() {
+        let (workspace, _cleanup) = review_test_workspace("deleted");
+        fs::write(workspace.join("old.txt"), "old content\n").expect("seed old file");
+        let session_id = "session-review-deleted";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::remove_file(workspace.join("old.txt")).expect("delete old file");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        assert_eq!(review.changed_files[0].change_type, "deleted");
+        let result = revert_agent_review_at(&review_test_path(&workspace, session_id), review)
+            .expect("revert review");
+        assert!(result.conflicts.is_empty());
+        assert_eq!(
+            fs::read_to_string(workspace.join("old.txt")).expect("restored old file"),
+            "old content\n"
+        );
+    }
+
+    #[test]
+    fn agent_review_excludes_generated_and_metadata_directories() {
+        let (workspace, _cleanup) = review_test_workspace("exclusions");
+        let session_id = "session-review-exclusions";
+        let capture = review_test_capture(&workspace, session_id);
+        for relative in [
+            ".agentboard/logs/ignored.log",
+            ".agentboard/prompts/ignored.md",
+            ".agentboard/reviews/ignored/review.json",
+            ".git/ignored",
+            "node_modules/pkg/ignored.js",
+            "dist/ignored.js",
+            "target/ignored.bin",
+        ] {
+            let path = workspace.join(relative);
+            fs::create_dir_all(path.parent().expect("excluded parent")).expect("excluded dir");
+            fs::write(path, "ignored").expect("excluded file");
+        }
+        fs::write(workspace.join("visible.txt"), "visible").expect("visible file");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        assert_eq!(
+            review
+                .changed_files
+                .iter()
+                .map(|file| file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["visible.txt"]
+        );
+    }
+
+    #[test]
+    fn agent_review_hides_sensitive_diff() {
+        let (workspace, _cleanup) = review_test_workspace("sensitive");
+        fs::write(workspace.join(".env"), "TOKEN=before\n").expect("seed env");
+        let session_id = "session-review-sensitive";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::write(workspace.join(".env"), "TOKEN=after\n").expect("modify env");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        let file = &review.changed_files[0];
+        assert!(file.sensitive);
+        assert!(file.diff_preview.is_none());
+        assert!(!file.can_revert);
+        assert!(review_path_is_sensitive("config/api-token.json"));
+    }
+
+    #[test]
+    fn agent_review_revert_conflict_preserves_newer_content() {
+        let (workspace, _cleanup) = review_test_workspace("conflict");
+        fs::write(workspace.join("README.md"), "before\n").expect("seed readme");
+        let session_id = "session-review-conflict";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::write(workspace.join("README.md"), "agent change\n").expect("agent change");
+        let review =
+            finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        fs::write(workspace.join("README.md"), "user change after review\n")
+            .expect("newer user change");
+        let result = revert_agent_review_at(&review_test_path(&workspace, session_id), review)
+            .expect("attempt revert");
+        assert_eq!(result.conflicts.len(), 1);
+        assert_eq!(result.review.review_status, "pending");
+        assert_eq!(
+            fs::read_to_string(workspace.join("README.md")).expect("preserved readme"),
+            "user change after review\n"
+        );
+    }
+
+    #[test]
+    fn agent_review_restores_from_persisted_review_json() {
+        let (workspace, _cleanup) = review_test_workspace("restart");
+        let session_id = "session-review-restart";
+        let capture = review_test_capture(&workspace, session_id);
+        fs::write(workspace.join("hello.txt"), "restart safe\n").expect("create hello");
+        finalize_agent_review(&capture, "completed", Some("200")).expect("finalize review");
+        let restored =
+            read_agent_review(&review_test_path(&workspace, session_id)).expect("restore review");
+        assert_eq!(restored.session_id, session_id);
+        assert_eq!(restored.review_status, "pending");
+        assert_eq!(restored.changed_files[0].relative_path, "hello.txt");
+    }
+
+    #[test]
+    fn agent_review_inspect_only_does_not_capture_edit_review() {
+        let (workspace, _cleanup) = review_test_workspace("inspect-only");
+        let mut request = codex_request(&workspace, "Inspect only", Vec::new());
+        request.run_mode = "inspect_only".to_string();
+        let capture = prepare_agent_review_capture(
+            &request,
+            &workspace,
+            &workspace,
+            "session-review-inspect",
+            "100",
+            &workspace
+                .join(".agentboard")
+                .join("logs")
+                .join("inspect.log"),
+        )
+        .expect("prepare inspect review");
+        assert!(capture.is_none());
+        assert!(!review_dir(&workspace, "session-review-inspect").exists());
+    }
+
+    #[test]
+    #[ignore = "manual safe-workspace verification; requires PowerShell"]
+    fn agent_review_live_safe_workspace_flow() {
+        let (workspace, _cleanup) = review_test_workspace("live-safe-workspace");
+        let state = AppState::default();
+        let output_sink: OutputSink = Arc::new(|_, _, _| {});
+        let status_sink: StatusSink = Arc::new(|_| {});
+
+        let run = |prompt: &str, label: &str| {
+            let session = run_agent_core(
+                state.sessions.clone(),
+                powershell_request(&workspace, label, prompt),
+                output_sink.clone(),
+                status_sink.clone(),
+            )
+            .expect("start safe review session");
+            wait_for_status(&state, &session.id, &["completed"], Duration::from_secs(20));
+            let path = review_test_path(&workspace, &session.id);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !path.is_file() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            (
+                path.clone(),
+                read_agent_review(&path).expect("read generated review"),
+            )
+        };
+
+        let (created_path, created_review) = run(
+            "Set-Content -LiteralPath hello.txt -Value 'Hello from AgentBoard review'",
+            "Create hello",
+        );
+        assert_eq!(created_review.changed_files.len(), 1);
+        assert_eq!(created_review.changed_files[0].change_type, "created");
+        let accepted =
+            accept_agent_review_at(&created_path, created_review).expect("accept created review");
+        assert_eq!(accepted.review.review_status, "accepted");
+        assert_eq!(
+            read_agent_review(&created_path)
+                .expect("reload accepted review")
+                .review_status,
+            "accepted"
+        );
+
+        let (temporary_path, temporary_review) = run(
+            "Set-Content -LiteralPath temp-review-test.txt -Value 'temporary'",
+            "Create temporary",
+        );
+        let reverted = revert_agent_review_at(&temporary_path, temporary_review)
+            .expect("revert temporary review");
+        assert!(reverted.conflicts.is_empty());
+        assert!(!workspace.join("temp-review-test.txt").exists());
+
+        fs::write(workspace.join("README.md"), "Original README\n").expect("seed readme");
+        let (modified_path, modified_review) = run(
+            "Set-Content -LiteralPath README.md -Value 'Agent README'",
+            "Modify README",
+        );
+        assert_eq!(modified_review.changed_files[0].change_type, "modified");
+        assert!(modified_review.changed_files[0].diff_preview.is_some());
+        let reverted =
+            revert_agent_review_at(&modified_path, modified_review).expect("revert readme review");
+        assert!(reverted.conflicts.is_empty());
+        assert_eq!(
+            fs::read_to_string(workspace.join("README.md")).expect("read restored readme"),
+            "Original README\n"
+        );
+
+        fs::write(workspace.join(".env"), "TOKEN=before\n").expect("seed env");
+        let (_, sensitive_review) = run(
+            "Set-Content -LiteralPath .env -Value 'TOKEN=after'",
+            "Modify sensitive",
+        );
+        let sensitive = sensitive_review
+            .changed_files
+            .iter()
+            .find(|file| file.relative_path == ".env")
+            .expect("sensitive env review");
+        assert!(sensitive.sensitive);
+        assert!(sensitive.diff_preview.is_none());
+    }
+
     #[test]
     #[ignore = "requires live GitHub API access"]
     fn github_marketplace_live_search_and_preview() {
@@ -5664,12 +9327,19 @@ mod tests {
             "live GitHub search returned no skills"
         );
         let selected = result.items[0].clone();
+        let selected_candidate = selected.candidates.first().cloned();
         let preview = github_marketplace_preview_impl(
             &state,
             &app_data,
             GithubMarketplacePreviewRequest {
                 workspace_path: workspace.to_string_lossy().to_string(),
                 repo_full_name: selected.full_name.clone(),
+                candidate_id: selected_candidate
+                    .as_ref()
+                    .map(|candidate| candidate.id.clone()),
+                candidate_path: selected_candidate
+                    .as_ref()
+                    .map(|candidate| candidate.candidate_path.clone()),
                 force_refresh: true,
             },
         )
@@ -5682,6 +9352,12 @@ mod tests {
             GithubMarketplaceInstallRequest {
                 workspace_path: workspace.to_string_lossy().to_string(),
                 repo_full_name: selected.full_name.clone(),
+                candidate_id: Some(preview.candidate_id.clone()),
+                candidate_path: Some(preview.candidate_path.clone()),
+                preview_commit_sha: Some(preview.commit_sha.clone()),
+                skill_markdown_path: preview.skill_markdown_path.clone(),
+                skill_json_path: preview.skill_json_path.clone(),
+                readme_path: preview.readme_path.clone(),
                 install_name: Some("live-github-skill".to_string()),
                 allow_readme_draft: preview.readme_only,
                 duplicate_action: "cancel".to_string(),

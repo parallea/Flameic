@@ -1,0 +1,25 @@
+{
+  "source": "github",
+  "repoFullName": "carlosmarte/agent-skills-progressive-readme-updater",
+  "repoUrl": "https://github.com/carlosmarte/agent-skills-progressive-readme-updater",
+  "defaultBranch": "main",
+  "commitSha": "9db665c6dd506e016b237a2656dfcdb5d2ef6904",
+  "sourceContentKind": "formal_skill",
+  "candidateId": "formal:.agents/skills/progressive-readme-updater",
+  "candidatePath": ".agents/skills/progressive-readme-updater",
+  "skillMarkdownPath": ".agents/skills/progressive-readme-updater/SKILL.md",
+  "skillJsonPath": null,
+  "readmePath": null,
+  "installedAt": "1781710979",
+  "updatedAt": "1781714628",
+  "starsAtInstall": 0,
+  "forksAtInstall": 0,
+  "license": null,
+  "fetchedFiles": [
+    ".agents/skills/progressive-readme-updater/SKILL.md"
+  ],
+  "trusted": false,
+  "trustState": "disabled",
+  "warning": "Remote code was not executed.",
+  "originalSkillJson": null
+}

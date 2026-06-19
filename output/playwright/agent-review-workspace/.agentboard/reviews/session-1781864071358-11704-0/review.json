@@ -1,0 +1,34 @@
+{
+  "reviewId": "review-session-1781864071358-11704-0",
+  "sessionId": "session-1781864071358-11704-0",
+  "deploymentId": "deployment-mqkrv0s2-5n0cd",
+  "workspacePath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "targetPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "executionPath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopeKind": "directory",
+  "provider": "powershell",
+  "runMode": "edit",
+  "sessionStatus": "completed",
+  "reviewStatus": "accepted",
+  "createdAt": "1781864071",
+  "completedAt": "1781864071",
+  "rawLogPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.agentboard\\logs\\powershell-session-1781864071358-11704-0.log",
+  "resultSummary": "1 user file change detected: 1 created, 0 modified, 0 deleted",
+  "changedFiles": [
+    {
+      "relativePath": "hello.txt",
+      "absolutePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\hello.txt",
+      "changeType": "created",
+      "oldHash": null,
+      "newHash": "fnv1a64:caa3a00b14f9556d",
+      "oldSize": 0,
+      "newSize": 30,
+      "diffPreview": "--- /dev/null\n+++ b/hello.txt\n@@ -1,0 +1,1 @@\n+Hello from AgentBoard review\n",
+      "binary": false,
+      "largeFile": false,
+      "sensitive": false,
+      "canRevert": true
+    }
+  ]
+}

@@ -62,6 +62,18 @@ check(existsSync(file('docs/MULTI_AGENT_EXECUTION.md')), 'MULTI_AGENT_EXECUTION.
 check(existsSync(file('docs/AGENT_DEPLOYMENT_UX.md')), 'AGENT_DEPLOYMENT_UX.md is missing');
 check(existsSync(file('docs/DEPLOYMENT_PREFLIGHT_QA.md')), 'DEPLOYMENT_PREFLIGHT_QA.md is missing');
 check(
+  existsSync(file('docs/RUN_MODE_PROPAGATION_QA.md')),
+  'RUN_MODE_PROPAGATION_QA.md is missing'
+);
+check(
+  existsSync(file('docs/ENVIRONMENT_BLOCKER_QA.md')),
+  'ENVIRONMENT_BLOCKER_QA.md is missing'
+);
+check(
+  existsSync(file('docs/AGENT_RESULT_REVIEW_QA.md')),
+  'AGENT_RESULT_REVIEW_QA.md is missing'
+);
+check(
   existsSync(file('docs/GITHUB_SKILLS_MARKETPLACE.md')),
   'GITHUB_SKILLS_MARKETPLACE.md is missing'
 );
@@ -108,11 +120,13 @@ check(
 
 const expectedCommands = [
   'add_workspace',
+  'accept_agent_review',
   'bootstrap',
   'clear_session_history',
   'create_worktree',
   'detect_agents',
   'export_diagnostics',
+  'get_agent_review',
   'git_status',
   'github_marketplace_install',
   'github_marketplace_preview',
@@ -122,11 +136,15 @@ const expectedCommands = [
   'github_marketplace_uninstall',
   'github_marketplace_update',
   'list_agent_profiles',
+  'list_agent_reviews',
   'list_deployments',
   'list_sessions',
   'load_workspace',
   'open_logs_folder',
+  'open_review_file',
+  'open_review_folder',
   'open_sample_workspace',
+  'open_skill_folder',
   'read_file',
   'run_agent',
   'run_multi_agent_smoke_test',
@@ -134,6 +152,8 @@ const expectedCommands = [
   'save_deployment',
   'save_github_token',
   'scan_workspace',
+  'reveal_review_file',
+  'revert_agent_review',
   'clear_github_token',
   'delete_agent_profile',
   'delete_deployment',
@@ -185,6 +205,8 @@ runNpm(
   ['run', 'test:github-marketplace-rate-limit'],
   'GitHub marketplace rate-limit UX tests'
 );
+runNpm(['run', 'test:run-mode-propagation'], 'Run mode propagation tests');
+runNpm(['run', 'test:environment-blocker'], 'Environment blocker UI/state tests');
 
 try {
   execFileSync(cargoCommand, ['--version'], { stdio: 'pipe', shell: false });

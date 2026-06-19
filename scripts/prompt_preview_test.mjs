@@ -67,6 +67,7 @@ const baseSkill = {
   enabled: true,
   repoFullName: 'example/github-review-skill',
   sourceUrl: 'https://github.com/example/github-review-skill',
+  sourceContentKind: 'formal_skill',
 };
 
 const trustedPrompt = generateDeploymentPrompt({
@@ -89,6 +90,67 @@ if (
 ) {
   throw new Error('GitHub source provenance line was not injected.');
 }
+if (!trustedPrompt.includes('sourceContentKind: formal_skill')) {
+  throw new Error('GitHub source content kind was not injected.');
+}
+if (!trustedPrompt.includes('Installed skill name: github-review-skill')) {
+  throw new Error('Installed skill provenance was not included.');
+}
+
+const largeSkillContent = `LARGE_SKILL_MARKER\n${'Follow the imported workflow exactly.\n'.repeat(900)}`;
+const largeSkill = {
+  ...baseSkill,
+  name: 'superpowers',
+  manifest: {
+    ...baseSkill.manifest,
+    name: 'superpowers',
+    title: 'superpowers',
+  },
+  repoFullName: 'example/superpowers',
+  sourceCandidatePath: 'skills/superpowers',
+  markdown: largeSkillContent,
+  trustState: 'reviewed',
+};
+const largeGithubPrompt = generateDeploymentPrompt({
+  workspace,
+  target,
+  profile,
+  task: 'Inspect the workspace.',
+  runMode: 'inspect_only',
+  selectedSkillNames: [largeSkill.name],
+  installedSkills: [largeSkill, { ...largeSkill }],
+  scanIssues: [],
+});
+if ((largeGithubPrompt.match(/LARGE_SKILL_MARKER/g) ?? []).length !== 1) {
+  throw new Error('Duplicate GitHub skill content was injected more than once.');
+}
+if (!largeGithubPrompt.includes('Duplicate selected skill sources were not injected twice')) {
+  throw new Error('Duplicate skill omission warning was not included.');
+}
+if (
+  !largeGithubPrompt.includes(
+    'Skill source: GitHub import from example/superpowers at skills/superpowers'
+  )
+) {
+  throw new Error('Duplicate display-name provenance was not clear.');
+}
+
+const inspectBuildPrompt = generateDeploymentPrompt({
+  workspace,
+  target,
+  profile,
+  task: 'Build a calculator application for Windows.',
+  runMode: 'inspect_only',
+  selectedSkillNames: [],
+  installedSkills: [],
+  scanIssues: [],
+});
+if (!inspectBuildPrompt.includes('Treat any request to build, create, fix, or implement')) {
+  throw new Error('Inspect-only build mismatch instructions were not included.');
+}
+if (inspectBuildPrompt.includes('Implement the concrete user task within scope.')) {
+  throw new Error('Inspect-only prompt still asks the agent to implement the task.');
+}
 
 const untrustedPrompt = generateDeploymentPrompt({
   workspace,
@@ -104,4 +166,6 @@ if (untrustedPrompt.includes('Inspect changed files and report verification.')) 
   throw new Error('Untrusted GitHub skill content entered the prompt.');
 }
 
-console.log('Prompt preview passed: reviewed GitHub skill injected with source; untrusted excluded.');
+console.log(
+  'Prompt preview passed: provenance, duplicate large-skill guard, inspect-only consistency, and trust gating verified.'
+);

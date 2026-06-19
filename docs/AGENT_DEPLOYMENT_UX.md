@@ -1,6 +1,6 @@
 # Agent Deployment UX
 
-Date: June 10, 2026
+Date: June 18, 2026
 
 ## Implemented
 
@@ -13,6 +13,18 @@ inspector.
 The dashboard shows active deployments, errors needing attention, tasks created today, pipelines,
 active workspaces, running sessions, and recent deployment activity. Raw logs remain in the
 collapsed terminal drawer and deployment/session details.
+
+## Agent Result Review
+
+Every edit-mode session captures a target-scoped before manifest before provider launch and writes
+a persisted result review after the process exits. The deployment and session inspectors show a
+summary, created/modified/deleted files, bounded text diffs, sensitive/binary/large states, Open,
+Reveal, Accept changes, Revert changes, Open raw log, and Open review folder.
+
+Review does not require Git. Accept only marks the persisted review accepted. Revert uses bounded
+before snapshots and expected post-run hashes; it does not commit, overwrite conflicts, touch
+`.agentboard`, or operate outside the recorded target. Inspect-only sessions show that no edit
+review is generated. See `AGENT_RESULT_REVIEW_QA.md`.
 
 ## Direct Deployment
 
@@ -30,8 +42,19 @@ record first, generates a target-scoped prompt, then calls the existing `run_age
 Runtime status and the session log path are copied back to the deployment record.
 
 Edit mode requires a concrete task and profile write permission. Inspect-only allows an empty task
-because AgentBoard supplies an explicit inspect-and-report instruction. Empty workspaces cannot
-launch in edit mode.
+because AgentBoard supplies an explicit inspect-and-report instruction. Empty workspaces may launch
+in edit mode when the profile allows writes and the task is concrete; the agent may create files
+inside the declared target scope.
+
+If an inspect-only task contains build/edit verbs such as `build`, `create`, `fix`, or `implement`,
+preflight shows: **Build tasks require edit mode. Inspect-only will only report findings.** The mode
+is not changed automatically. The generated inspect-only prompt treats the requested change as
+context to assess and explicitly prohibits implementation.
+
+The modal also presents a prominent choice: **Switch to Edit mode** or **Continue inspect-only**.
+The final confirmation shows the run mode, effective sandbox, and whether file creation/editing is
+allowed, plus the exact generated prompt used for runtime launch. Submission uses the immutable
+draft that passed preflight rather than reconstructing a draft from mutable modal state.
 
 ## Pipeline Deployment
 
@@ -65,9 +88,14 @@ Preflight checks target existence/type, source-file presence, `.agentboard`-only
 edit tasks, provider availability, selected local skills, log-folder writability, Git
 classification, profile write permission, and pipeline-node concerned files.
 
-An empty workspace or folder shows: **This target has no source files. Deploying an agent may do
-nothing.** The user can cancel, explicitly run inspect-only anyway, or see the disabled
-Create starter files action.
+An empty workspace or folder receives a mode-specific warning. Inspect-only requires explicit
+confirmation because there may be little to report. Edit mode remains selected and may create
+files within scope; it is not converted to inspect-only.
+
+Preflight returns the exact `requestedRunMode` it checked. The frontend rejects a response with a
+different mode and reruns preflight immediately before save/run. Missing write permission is a
+blocker with the message: **Edit mode cannot run because the selected agent profile does not allow
+Write files.**
 
 Non-Git targets are warnings, not fatal failures. The confirmation explains that worktree
 isolation and Git diff review are unavailable and switches isolation to the same workspace.
@@ -79,6 +107,58 @@ Codex run modes are enforced using flags supported by the installed `codex-cli 0
 
 Other providers retain their existing execution contracts. AgentBoard shows that read-only
 inspection is provider-controlled when it cannot enforce a sandbox.
+
+## Environment Blockers
+
+AgentBoard inspects the completed session log before assigning a terminal status. Clear external
+toolchain failures are classified as `blocked_environment` instead of `completed`,
+`completed_inspection`, or generic `failed`. Structured blocker metadata records the provider,
+missing tool/template, user-readable cause, suggested action, and fallback choices.
+
+Covered signals include missing WinGet, missing `dotnet new winui` templates, .NET first-run/user
+directory access failures, missing SDK/workload/template errors, missing Visual Studio workloads,
+and environment setup blocked by elevation, permissions, or sandbox restrictions.
+
+The deployment and session inspectors show:
+
+- retry after installing WinUI tooling;
+- build a simpler HTML/CSS/JS desktop prototype;
+- build WPF if its templates are available;
+- run an environment audit only.
+
+AgentBoard does not silently change the target framework.
+
+Windows-app task preflight recognizes phrases such as `Windows app`, `WinUI`, `desktop app`, and
+`calculator for Windows`. It checks `dotnet --info` and `dotnet new list winui`; when a WinUI skill
+is selected it also checks `winget --version`. Missing tooling normally produces a warning. An
+Edit run is blocked when an explicitly selected WinUI skill requires an unavailable WinUI
+template.
+
+## Prompt Transport
+
+Every runtime session writes a UTF-8 prompt record before process launch:
+
+```text
+<execution-workspace>\.agentboard\prompts\<session-id>.md
+```
+
+The record contains the full generated prompt plus session ID, timestamp, target metadata,
+selected-skill provenance, run mode, provider, model, character/UTF-8 byte counts, and the
+AgentBoard source note. The prompt directory has a local `.gitignore` so generated prompt records
+do not enter Git status.
+
+Codex always receives a short bootstrap argument that points to this file. The full prompt is
+never placed in Codex argv. This avoids the Windows `cmd.exe`/`.cmd` command-line limit while
+preserving the existing `read-only` and `workspace-write` sandbox flags.
+
+For other conversational providers, file transport is selected when the prompt exceeds 6,000
+characters, exceeds 12,000 UTF-8 bytes, or contains a selected GitHub skill. Oversized PowerShell
+and Command Prompt tasks use generated `.ps1`/`.cmd` script files so shell command semantics are
+preserved.
+
+Session logs record the prompt file path, prompt size, bootstrap size, selected-skill count, and
+selected-skill character count. They do not serialize the full prompt or argv payload. Restored
+sessions reload prompt text from the prompt file.
 
 ## Storage
 
@@ -92,6 +172,18 @@ Profiles and deployments use global application data:
 Workspace session logs remain under `<workspace>\.agentboard\logs`. On restart, global records are
 loaded during bootstrap and deployment status/log links are reconciled with restored session
 metadata.
+
+Workspace prompt records remain under `<workspace>\.agentboard\prompts` (or the execution
+worktree's equivalent). Diagnostics continue to exclude prompt and log contents.
+
+Agent result reviews remain under:
+
+```text
+<workspace>\.agentboard\reviews\<session-id>\review.json
+```
+
+The review folder also retains the capture manifest and safe bounded before snapshots required for
+revert. Review status survives restart independently of the raw log drawer.
 
 Workspace skills, including GitHub imports, remain under:
 
@@ -120,14 +212,47 @@ requires an explicit concurrency-risk confirmation.
 - `npm run build`: passed
 - `cargo metadata --manifest-path src-tauri\Cargo.toml --format-version 1 --no-deps`: passed
 - `cargo test --manifest-path src-tauri\Cargo.toml runtime_backend_flow -- --nocapture`: passed
+- `npm run test:agent-review`: passed (8 focused review tests)
 - Profile and deployment save/list/update/delete persistence is covered by
   `runtime_backend_flow`.
 - The same test also reverified simultaneous PowerShell sessions, independent stop, separate logs,
   and session restoration.
-- Runtime QA verifies empty-target blocking, explicit inspect-only allowance, concrete task
-  requirements, non-empty source detection, missing pipeline scope, Git warning classification,
-  provider/skill checks, and log-folder writability.
+- Runtime QA verifies empty-target mode handling, explicit inspect-only allowance, concrete task
+  requirements, empty-target edit creation, non-empty source detection, missing pipeline scope,
+  Git warning classification, provider/skill checks, and log-folder writability.
 - Runtime QA verifies exact Codex sandbox arguments for inspect-only and edit.
+- Focused prompt-transport tests verify oversized Codex prompts stay out of argv, prompt files are
+  written, bootstraps reference those files, GitHub skill metrics deduplicate, inspect/build
+  mismatch warnings appear, GitHub token patterns are redacted, and diagnostics omit prompt
+  contents.
+- A live Codex manual test on June 18, 2026 launched one large reviewed GitHub-skill prompt through
+  `run_agent_core`, completed in `read-only` mode, read the prompt file, returned
+  `AGENTBOARD_PROMPT_FILE_OK`, and did not produce `The command line is too long`.
+- A controlled PowerShell run-mode smoke created `calculator-smoke.txt` in Edit mode and completed
+  as `completed`. A separate inspect-only run for a build-worded task created no file and completed
+  as `completed_inspection`.
+- Environment classification QA verifies missing WinGet, missing WinUI templates, .NET first-run
+  access errors, missing workloads, setup permissions, and generic process failures. A controlled
+  process that printed the missing-WinUI-template sentinel completed as `blocked_environment`.
+- Agent review QA verifies created/modified/deleted detection, bounded unified diffs, exclusions,
+  sensitive diff hiding, accept/revert persistence, conflict-safe revert, restart loading, and
+  inspect-only bypass.
+- Live Tauri QA in a disposable workspace verified create/diff/accept, accepted status after a
+  desktop-process restart, revert confirmation contents, created-file removal, and `reverted`
+  status. A real PowerShell safe-workspace test separately verified modified-file restoration and
+  sensitive `.env` diff hiding.
+
+For an edit-mode tester smoke that does not depend on a Windows UI toolchain, use:
+
+```text
+Create calculator-smoke.txt containing Calculator App.
+```
+
+An alternative browser-based smoke is:
+
+```text
+Create a simple calculator web app with index.html, style.css, and app.js.
+```
 - A PowerShell `LineA`/`LineB` run verifies each output and spawn event appears once in emitted
   events and once in the durable log. The log is non-empty before `run_agent` returns.
 - Live `tauri dev` verification created/restored a Codex profile, selected the installed Software
@@ -151,6 +276,9 @@ requires an explicit concurrency-risk confirmation.
   remain provider-controlled or prompt-level and are not an operating-system sandbox.
 - Provider model strings are intentionally flexible and are not validated against remote model
   catalogs.
+- Large, binary, sensitive, or unhashable files may be reviewable only as metadata and may not be
+  safely revertible. AgentBoard reports that state instead of retaining unbounded or secret-bearing
+  snapshots.
 
 ## Confidence
 

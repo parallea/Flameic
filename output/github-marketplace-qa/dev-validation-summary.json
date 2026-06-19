@@ -1,0 +1,123 @@
+{
+  "workspace": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\workspace-live",
+  "installed": [
+    {
+      "name": "academic-research-skills",
+      "title": "Draft from Imbad0202/academic-research-skills README",
+      "path": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\workspace-live\\.agentboard\\skills\\academic-research-skills",
+      "repo": "Imbad0202/academic-research-skills",
+      "trustState": "reviewed",
+      "sourceContentKind": "readme_draft",
+      "candidatePath": ".",
+      "skillMarkdownPath": null,
+      "readmePath": "README.md",
+      "commitSha": "88fc003e6abf5fe9fe86dc8200f8d4aa8d511956",
+      "files": [
+        "SKILL.md",
+        "skill.json",
+        "source.json"
+      ]
+    },
+    {
+      "name": "qa-nested-formal",
+      "title": "agent-skills-progressive-readme-updater",
+      "path": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\workspace-live\\.agentboard\\skills\\qa-nested-formal",
+      "repo": "carlosmarte/agent-skills-progressive-readme-updater",
+      "trustState": "disabled",
+      "sourceContentKind": "formal_skill",
+      "candidatePath": ".agents/skills/progressive-readme-updater",
+      "skillMarkdownPath": ".agents/skills/progressive-readme-updater/SKILL.md",
+      "readmePath": null,
+      "commitSha": "9db665c6dd506e016b237a2656dfcdb5d2ef6904",
+      "files": [
+        "SKILL.md",
+        "skill.json",
+        "source.json"
+      ]
+    },
+    {
+      "name": "qa-root-formal",
+      "title": "qiaomu-skill-publisher",
+      "path": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\workspace-live\\.agentboard\\skills\\qa-root-formal",
+      "repo": "joeseesun/qiaomu-skill-publisher",
+      "trustState": "reviewed",
+      "sourceContentKind": "formal_skill",
+      "candidatePath": ".",
+      "skillMarkdownPath": "SKILL.md",
+      "readmePath": "README.md",
+      "commitSha": "8bd944b7723e710d38f9fa4034e8ba6addbbdfed",
+      "files": [
+        "SKILL.md",
+        "skill.json",
+        "source.json"
+      ]
+    }
+  ],
+  "reviewTrustBefore": [
+    {
+      "text": "Draft from Imbad0202/academic-research-skills README\nReview this GitHub skill before enabling.",
+      "disabled": true,
+      "checked": false
+    },
+    {
+      "text": "agent-skills-progressive-readme-updater\nReview this GitHub skill before enabling.",
+      "disabled": true,
+      "checked": false
+    },
+    {
+      "text": "qiaomu-skill-publisher\nReview this GitHub skill before enabling.",
+      "disabled": true,
+      "checked": false
+    }
+  ],
+  "reviewTrustAfter": [
+    {
+      "text": "Draft from Imbad0202/academic-research-skills README\ngithub / reviewed",
+      "disabled": false,
+      "checked": false
+    },
+    {
+      "text": "agent-skills-progressive-readme-updater\nReview this GitHub skill before enabling.",
+      "disabled": true,
+      "checked": false
+    },
+    {
+      "text": "qiaomu-skill-publisher\ngithub / reviewed",
+      "disabled": false,
+      "checked": false
+    }
+  ],
+  "prompt": {
+    "path": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\dev-prompt-preview-proof.txt",
+    "includesRootSource": true,
+    "includesFormalKind": true,
+    "includesReadmeKind": true,
+    "excludesDisabledNested": true,
+    "states": [
+      {
+        "name": "academic-research-skills",
+        "title": "Draft from Imbad0202/academic-research-skills README",
+        "repo": "Imbad0202/academic-research-skills",
+        "kind": "readme_draft",
+        "trust": "reviewed",
+        "markdownStart": "# Academic Research Skills for Claude Code\n\n[![Version](http"
+      },
+      {
+        "name": "qa-nested-formal",
+        "title": "agent-skills-progressive-readme-updater",
+        "repo": "carlosmarte/agent-skills-progressive-readme-updater",
+        "kind": "formal_skill",
+        "trust": "disabled",
+        "markdownStart": "---\nname: progressive-readme-updater\ndescription: Update a s"
+      },
+      {
+        "name": "qa-root-formal",
+        "title": "qiaomu-skill-publisher",
+        "repo": "joeseesun/qiaomu-skill-publisher",
+        "kind": "formal_skill",
+        "trust": "reviewed",
+        "markdownStart": "---\nname: skill-publisher\ndescription: |\n  一键发布 agent skill "
+      }
+    ]
+  }
+}

@@ -18,9 +18,27 @@ optional worktree path, timestamps, exit code, log path, and status:
 - `staged`
 - `running`
 - `completed`
+- `completed_inspection`
 - `failed`
 - `stopped`
 - `external_blocked`
+- `blocked_environment`
+
+## Result Review Persistence
+
+Edit-mode sessions also persist Agent Result Review state at:
+
+```text
+<workspace>/.agentboard/reviews/<session-id>/review.json
+```
+
+`review.json` records the session/deployment link, workspace and target scope, provider, run mode,
+terminal session status, review status (`pending`, `accepted`, or `reverted`), raw log path, result
+summary, and changed-file metadata. The same folder retains `capture.json` and safe bounded
+before-content snapshots required by revert.
+
+Reviews are loaded directly from workspace storage, so accepted and reverted status survives app
+restart. Inspect-only sessions do not create edit reviews.
 
 ## Restoration
 
@@ -49,4 +67,6 @@ The original bytes remain in the `.log` file.
 - **Clear** requires confirmation and deletes non-running `.log` files for the active workspace.
 - Running session logs are retained and reported in the clear result.
 
-Clearing history is permanent because the log files are the persistence source.
+Clearing session history is permanent for the selected raw logs. It does not delete
+`.agentboard/reviews`; a retained review may therefore continue to show changed-file metadata even
+when its raw log link no longer exists.

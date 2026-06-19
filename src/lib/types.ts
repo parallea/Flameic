@@ -22,7 +22,8 @@ export type SessionStatus =
   | 'completed_inspection'
   | 'failed'
   | 'stopped'
-  | 'external_blocked';
+  | 'external_blocked'
+  | 'blocked_environment';
 
 export type QueueStatus =
   | 'queued'
@@ -31,7 +32,8 @@ export type QueueStatus =
   | 'completed_inspection'
   | 'failed'
   | 'stopped'
-  | 'external_blocked';
+  | 'external_blocked'
+  | 'blocked_environment';
 
 export type NodeStatus =
   | 'not_started'
@@ -126,6 +128,9 @@ export interface SkillInfo {
   trustState: 'local' | 'untrusted' | 'reviewed' | 'trusted' | 'disabled' | 'invalid';
   repoFullName?: string;
   sourceUrl?: string;
+  sourceContentKind?: 'formal_skill' | 'readme_draft';
+  sourceCandidateId?: string;
+  sourceCandidatePath?: string;
 }
 
 export interface GithubRateLimit {
@@ -176,6 +181,30 @@ export interface GithubMarketplaceRepo {
   installStatus: 'not_installed' | 'installed' | 'update_available' | 'disabled';
   latestCommitSha?: string;
   previewCached: boolean;
+  candidates: GithubMarketplaceCandidate[];
+}
+
+export interface GithubMarketplaceCandidate {
+  id: string;
+  repoFullName: string;
+  repoUrl: string;
+  defaultBranch: string;
+  commitSha?: string;
+  candidateName: string;
+  candidatePath: string;
+  skillMarkdownPath?: string;
+  skillJsonPath?: string;
+  readmePath?: string;
+  sourceContentKind: 'formal_skill' | 'readme_draft';
+  formalSkill: boolean;
+  readmeOnly: boolean;
+  installable: boolean;
+  detectionWarnings: string[];
+  nested: boolean;
+  detectedFiles: string[];
+  installedSkillName?: string;
+  installStatus: 'not_installed' | 'installed' | 'update_available' | 'disabled';
+  previewCached: boolean;
 }
 
 export interface GithubMarketplaceSearchResult {
@@ -197,6 +226,7 @@ export interface GithubMarketplaceFile {
 
 export interface GithubMarketplacePreview {
   repo: GithubMarketplaceRepo;
+  candidate: GithubMarketplaceCandidate;
   files: GithubMarketplaceFile[];
   formalSkill: boolean;
   readmeOnly: boolean;
@@ -204,6 +234,16 @@ export interface GithubMarketplacePreview {
   recommendedName: string;
   warning?: string;
   cached: boolean;
+  repoFullName: string;
+  commitSha: string;
+  candidateId: string;
+  candidatePath: string;
+  skillMarkdownPath?: string;
+  skillJsonPath?: string;
+  readmePath?: string;
+  sourceContentKind: 'formal_skill' | 'readme_draft';
+  contentShas: Record<string, string>;
+  cachedAt: string;
   rateLimit: GithubRateLimit;
 }
 
@@ -217,7 +257,7 @@ export interface GithubMarketplaceInstallResult {
 }
 
 export interface GithubMarketplaceUpdateResult {
-  status: 'up_to_date' | 'confirmation_required' | 'updated';
+  status: 'up_to_date' | 'confirmation_required' | 'updated' | 'cached_rate_limited';
   changedFiles: string[];
   previousCommitSha: string;
   latestCommitSha: string;
@@ -340,6 +380,70 @@ export interface SessionInfo {
   exitCode?: number;
   executionPath: string;
   worktreePath?: string;
+  promptFilePath?: string;
+  promptTransport?: 'argument' | 'file';
+  promptCharacterCount?: number;
+  promptByteCount?: number;
+  bootstrapPromptCharacterCount?: number;
+  selectedSkillCharacterCount?: number;
+  environmentBlocker?: EnvironmentBlocker;
+}
+
+export type AgentReviewStatus = 'pending' | 'accepted' | 'reverted';
+export type AgentReviewChangeType = 'created' | 'modified' | 'deleted';
+
+export interface ReviewChangedFile {
+  relativePath: string;
+  absolutePath: string;
+  changeType: AgentReviewChangeType;
+  oldHash?: string;
+  newHash?: string;
+  oldSize: number;
+  newSize: number;
+  diffPreview?: string;
+  binary: boolean;
+  largeFile: boolean;
+  sensitive: boolean;
+  canRevert: boolean;
+}
+
+export interface AgentReview {
+  reviewId: string;
+  sessionId: string;
+  deploymentId?: string;
+  workspacePath: string;
+  targetPath: string;
+  executionPath: string;
+  scopePath: string;
+  scopeKind: 'file' | 'directory';
+  provider: string;
+  runMode: DeploymentRunMode;
+  sessionStatus: SessionStatus;
+  reviewStatus: AgentReviewStatus;
+  createdAt: string;
+  completedAt: string;
+  rawLogPath: string;
+  resultSummary: string;
+  changedFiles: ReviewChangedFile[];
+}
+
+export interface ReviewConflict {
+  relativePath: string;
+  reason: string;
+}
+
+export interface ReviewActionResult {
+  review: AgentReview;
+  affectedFiles: string[];
+  conflicts: ReviewConflict[];
+}
+
+export interface EnvironmentBlocker {
+  code: string;
+  tool: string;
+  cause: string;
+  suggestedAction: string;
+  fallbackOptions: string[];
 }
 
 export interface AgentOutputEvent {
@@ -350,9 +454,11 @@ export interface AgentOutputEvent {
 
 export interface AgentStatusEvent {
   sessionId: string;
+  runMode: DeploymentRunMode;
   status: SessionStatus;
   exitCode?: number;
   message?: string;
+  environmentBlocker?: EnvironmentBlocker;
 }
 
 export interface DeploymentPreflightRequest {
@@ -373,6 +479,7 @@ export interface DeploymentPreflightMessage {
 }
 
 export interface DeploymentPreflightResult {
+  requestedRunMode: DeploymentRunMode;
   targetExists: boolean;
   sourceFileCount: number;
   hasSourceFiles: boolean;

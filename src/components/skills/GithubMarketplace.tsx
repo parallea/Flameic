@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Download,
+  FolderOpen,
   GitFork,
   KeyRound,
   RefreshCw,
@@ -21,6 +22,7 @@ import {
 } from '../../lib/githubRateLimit';
 import { agentboardApi } from '../../lib/tauri';
 import type {
+  GithubMarketplaceCandidate,
   GithubMarketplacePreview,
   GithubMarketplaceRepo,
   GithubMarketplaceSearchResult,
@@ -40,9 +42,22 @@ type MarketplaceSort = 'best_match' | 'stars' | 'updated';
 
 function statusLabel(status: GithubMarketplaceRepo['detectedSkillStatus']) {
   if (status === 'formal_skill') return 'Formal skill';
-  if (status === 'readme_only') return 'README only';
+  if (status === 'readme_only') return 'README draft';
   if (status === 'detection_unavailable') return 'Detection unavailable';
   return 'No skill files';
+}
+
+function candidateKindLabel(candidate: GithubMarketplaceCandidate) {
+  if (candidate.readmeOnly) return 'README draft';
+  if (candidate.formalSkill) return 'Formal skill';
+  return 'Formal metadata';
+}
+
+function installStatusLabel(status: GithubMarketplaceCandidate['installStatus']) {
+  if (status === 'update_available') return 'Update available';
+  if (status === 'installed') return 'Already installed';
+  if (status === 'disabled') return 'Disabled';
+  return 'Not installed';
 }
 
 function dateLabel(value: string) {
@@ -78,11 +93,18 @@ export function GithubSkillsMarketplace({
   const [quotaNow, setQuotaNow] = useState(() => Date.now());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [postInstallSkillName, setPostInstallSkillName] = useState<string | null>(null);
+  const [highlightedSkillName, setHighlightedSkillName] = useState<string | null>(null);
   const tokenInputRef = useRef<HTMLInputElement>(null);
+  const installedSectionRef = useRef<HTMLDivElement>(null);
 
   const githubSkills = useMemo(
     () => skills.filter((skill) => skill.manifest.source === 'github'),
     [skills]
+  );
+  const postInstallSkill = useMemo(
+    () => githubSkills.find((skill) => skill.name === postInstallSkillName) ?? null,
+    [githubSkills, postInstallSkillName]
   );
 
   const refreshRateLimits = useCallback(async () => {
@@ -152,7 +174,10 @@ export function GithubSkillsMarketplace({
       setResult(next);
       mergeRateLimit(next.rateLimit);
       void refreshRateLimits();
-      toast.success(`GitHub search returned ${next.items.length} repositories`);
+      const candidateCount = next.items.reduce((total, item) => total + item.candidates.length, 0);
+      toast.success(`GitHub search returned ${next.items.length} repositories`, {
+        description: `${candidateCount} candidate${candidateCount === 1 ? '' : 's'} detected`,
+      });
     } catch (searchError) {
       const detail = userFacingError(searchError);
       setError(detail);
@@ -162,27 +187,42 @@ export function GithubSkillsMarketplace({
     }
   };
 
-  const openPreview = async (repo: GithubMarketplaceRepo, forceRefresh = false) => {
+  const openPreview = async (
+    repo: GithubMarketplaceRepo,
+    candidate: GithubMarketplaceCandidate,
+    forceRefresh = false
+  ) => {
     try {
-      setBusy(`preview:${repo.fullName}`);
+      setBusy(`preview:${candidate.id}`);
       setError('');
       const next = await agentboardApi.githubMarketplacePreview(
         workspacePath,
         repo.fullName,
+        candidate,
         forceRefresh
       );
       setPreview(next);
       setSelectedFile(0);
       setInstallName(next.recommendedName);
       setAllowReadmeDraft(false);
-      setDuplicateAction(next.repo.installedSkillName ? 'cancel' : 'rename');
+      setDuplicateAction(next.candidate.installedSkillName ? 'cancel' : 'rename');
       mergeRateLimit(next.rateLimit);
       setResult((current) =>
         current
           ? {
               ...current,
               items: current.items.map((item) =>
-                item.fullName === repo.fullName ? { ...item, previewCached: true } : item
+                item.fullName === repo.fullName
+                  ? {
+                      ...item,
+                      previewCached: true,
+                      candidates: item.candidates.map((existing) =>
+                        existing.id === next.candidateId
+                          ? { ...existing, previewCached: true }
+                          : existing
+                      ),
+                    }
+                  : item
               ),
             }
           : current
@@ -200,7 +240,7 @@ export function GithubSkillsMarketplace({
   const install = async () => {
     if (!preview) return;
     if (preview.readmeOnly && !allowReadmeDraft) {
-      setError('Confirm Install README as skill draft before installing this repository.');
+      setError('Confirm Create draft from README before installing this repository draft.');
       return;
     }
     try {
@@ -209,6 +249,12 @@ export function GithubSkillsMarketplace({
       const installed = await agentboardApi.githubMarketplaceInstall({
         workspacePath,
         repoFullName: preview.repo.fullName,
+        candidateId: preview.candidateId,
+        candidatePath: preview.candidatePath,
+        previewCommitSha: preview.commitSha,
+        skillMarkdownPath: preview.skillMarkdownPath,
+        skillJsonPath: preview.skillJsonPath,
+        readmePath: preview.readmePath,
         installName: installName.trim() || preview.recommendedName,
         allowReadmeDraft,
         duplicateAction,
@@ -218,12 +264,41 @@ export function GithubSkillsMarketplace({
         setError(installed.message);
         return;
       }
-      toast.success('GitHub skill installed as untrusted', {
+      toast.success(preview.readmeOnly ? 'README draft created as untrusted' : 'GitHub skill installed as untrusted', {
         description: installed.path,
       });
+      if (installed.skill) {
+        setPostInstallSkillName(installed.skill.name);
+        setHighlightedSkillName(installed.skill.name);
+      }
       await onRefresh();
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((item) =>
+                item.fullName === preview.repo.fullName
+                  ? {
+                      ...item,
+                      installStatus: 'installed',
+                      installedSkillName: installed.skill?.name ?? item.installedSkillName,
+                      candidates: item.candidates.map((candidate) =>
+                        candidate.id === preview.candidateId
+                          ? {
+                              ...candidate,
+                              installStatus: 'installed',
+                              installedSkillName:
+                                installed.skill?.name ?? candidate.installedSkillName,
+                            }
+                          : candidate
+                      ),
+                    }
+                  : item
+              ),
+            }
+          : current
+      );
       setPreview(null);
-      await search(true);
     } catch (installError) {
       const detail = userFacingError(installError);
       setError(detail);
@@ -253,6 +328,9 @@ export function GithubSkillsMarketplace({
         trustState
       );
       await onRefresh();
+      if (updated.name === postInstallSkillName && trustCanInject(updated)) {
+        setPostInstallSkillName(null);
+      }
       toast.success(`${updated.title} is now ${trustState}`);
     } catch (trustError) {
       toast.error('Could not update skill trust', { description: userFacingError(trustError) });
@@ -265,6 +343,10 @@ export function GithubSkillsMarketplace({
     try {
       setBusy(`update:${skill.name}`);
       const plan = await agentboardApi.githubMarketplaceUpdate(workspacePath, skill.name, false);
+      if (plan.status === 'cached_rate_limited') {
+        toast.warning('GitHub update check is rate-limited', { description: plan.message });
+        return;
+      }
       if (plan.status === 'up_to_date') {
         toast.success(`${skill.title} is already up to date`);
         return;
@@ -280,6 +362,10 @@ export function GithubSkillsMarketplace({
         skill.name,
         true
       );
+      if (updated.status === 'cached_rate_limited') {
+        toast.warning('GitHub update check is rate-limited', { description: updated.message });
+        return;
+      }
       await onRefresh();
       toast.success('GitHub skill updated', { description: updated.backupPath });
     } catch (updateError) {
@@ -333,6 +419,22 @@ export function GithubSkillsMarketplace({
     setTokenStored(false);
     await refreshRateLimits();
     toast.success('GitHub token cleared from memory');
+  };
+
+  const reviewNow = () => {
+    installedSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (postInstallSkillName) setHighlightedSkillName(postInstallSkillName);
+  };
+
+  const openInstalledFolder = async (skillName: string) => {
+    try {
+      const opened = await agentboardApi.openSkillFolder(workspacePath, skillName);
+      toast.success('Opened installed skill folder', { description: opened });
+    } catch (folderError) {
+      toast.error('Could not open installed skill folder', {
+        description: userFacingError(folderError),
+      });
+    }
   };
 
   return (
@@ -440,70 +542,155 @@ export function GithubSkillsMarketplace({
 
       <section className="grid gap-3 lg:grid-cols-2">
         {result?.items.map((repo) => {
-          const previewEnabled = canOpenGithubPreview(
-            coreRateLimit,
-            repo.previewCached,
-            quotaNow
-          );
-          return (
-            <button
-              key={repo.id}
-              onClick={() => void openPreview(repo)}
-              disabled={!previewEnabled}
-              title={!previewEnabled ? coreLimitMessage : undefined}
-              className="surface-card p-4 text-left transition-colors hover:border-primary/30 hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-            >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{repo.fullName}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                  {repo.description || 'No repository description.'}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 rounded border px-2 py-1 font-mono text-2xs ${
-                  repo.detectedSkillStatus === 'formal_skill'
-                    ? 'border-success/30 text-success'
-                    : repo.detectedSkillStatus === 'readme_only'
-                      ? 'border-warning/30 text-warning'
-                      : repo.detectedSkillStatus === 'detection_unavailable'
-                        ? 'border-warning/30 text-warning'
-                        : 'border-subtle text-muted-foreground'
+          const formalCandidates = repo.candidates.filter((candidate) => !candidate.readmeOnly);
+          const readmeDrafts = repo.candidates.filter((candidate) => candidate.readmeOnly);
+          const renderCandidate = (candidate: GithubMarketplaceCandidate) => {
+            const previewEnabled = canOpenGithubPreview(
+              coreRateLimit,
+              candidate.previewCached || repo.previewCached,
+              quotaNow
+            );
+            const busyPreview = busy === `preview:${candidate.id}`;
+            return (
+              <button
+                key={candidate.id}
+                onClick={() => void openPreview(repo, candidate)}
+                disabled={!previewEnabled}
+                title={!previewEnabled ? coreLimitMessage : undefined}
+                className={`w-full rounded border p-3 text-left transition-colors hover:border-primary/30 hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60 ${
+                  candidate.readmeOnly
+                    ? 'border-warning/25 bg-warning/[0.04]'
+                    : 'border-subtle bg-card/50'
                 }`}
               >
-                {statusLabel(repo.detectedSkillStatus)}
-              </span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3 font-mono text-2xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Star size={11} /> {repo.stars}
-              </span>
-              <span className="flex items-center gap-1">
-                <GitFork size={11} /> {repo.forks}
-              </span>
-              <span>{repo.language || 'Unknown language'}</span>
-              <span>{repo.license || 'No license detected'}</span>
-              <span>Updated {dateLabel(repo.updatedAt)}</span>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="rounded bg-sidebar px-2 py-1 font-mono text-2xs">
-                quality {repo.qualityLabel} / {repo.qualityScore}
-              </span>
-              <span className="rounded bg-sidebar px-2 py-1 font-mono text-2xs">
-                {repo.installStatus.replaceAll('_', ' ')}
-              </span>
-              {repo.previewCached && (
-                <span className="rounded border border-subtle px-2 py-1 text-2xs">
-                  cached preview available
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-foreground">
+                      {candidate.candidateName}
+                    </p>
+                    <p className="mt-1 truncate font-mono text-2xs text-muted-foreground">
+                      {candidate.candidatePath}
+                    </p>
+                  </div>
+                  {busyPreview ? (
+                    <RefreshCw size={13} className="mt-0.5 shrink-0 animate-spin text-primary" />
+                  ) : (
+                    <Download size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span
+                    className={`rounded border px-2 py-1 font-mono text-2xs ${
+                      candidate.readmeOnly
+                        ? 'border-warning/30 text-warning'
+                        : candidate.formalSkill
+                          ? 'border-success/30 text-success'
+                          : 'border-warning/30 text-warning'
+                    }`}
+                  >
+                    {candidateKindLabel(candidate)}
+                  </span>
+                  {candidate.nested && (
+                    <span className="rounded border border-subtle px-2 py-1 font-mono text-2xs">
+                      Nested skill
+                    </span>
+                  )}
+                  {candidate.installStatus !== 'not_installed' && (
+                    <span
+                      className={`rounded border px-2 py-1 font-mono text-2xs ${
+                        candidate.installStatus === 'update_available'
+                          ? 'border-warning/30 text-warning'
+                          : 'border-success/30 text-success'
+                      }`}
+                    >
+                      {installStatusLabel(candidate.installStatus)}
+                    </span>
+                  )}
+                  {candidate.previewCached && (
+                    <span className="rounded border border-subtle px-2 py-1 font-mono text-2xs text-muted-foreground">
+                      cached preview
+                    </span>
+                  )}
+                </div>
+                {!candidate.installable && (
+                  <p className="mt-2 text-2xs text-warning">
+                    {candidate.detectionWarnings[0] ??
+                      'Missing SKILL.md; this candidate cannot be installed.'}
+                  </p>
+                )}
+              </button>
+            );
+          };
+          return (
+            <div
+              key={repo.id}
+              className="surface-card p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{repo.fullName}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {repo.description || 'No repository description.'}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded border px-2 py-1 font-mono text-2xs ${
+                    repo.detectedSkillStatus === 'formal_skill'
+                      ? 'border-success/30 text-success'
+                      : repo.detectedSkillStatus === 'readme_only'
+                        ? 'border-warning/30 text-warning'
+                        : repo.detectedSkillStatus === 'detection_unavailable'
+                          ? 'border-warning/30 text-warning'
+                          : 'border-subtle text-muted-foreground'
+                  }`}
+                >
+                  {statusLabel(repo.detectedSkillStatus)}
                 </span>
-              )}
-              {repo.topics.slice(0, 4).map((topic) => (
-                <span key={topic} className="rounded border border-subtle px-2 py-1 text-2xs">
-                  {topic}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 font-mono text-2xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Star size={11} /> {repo.stars}
                 </span>
-              ))}
+                <span className="flex items-center gap-1">
+                  <GitFork size={11} /> {repo.forks}
+                </span>
+                <span>{repo.language || 'Unknown language'}</span>
+                <span>{repo.license || 'No license detected'}</span>
+                <span>Updated {dateLabel(repo.updatedAt)}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="rounded bg-sidebar px-2 py-1 font-mono text-2xs">
+                  quality {repo.qualityLabel} / {repo.qualityScore}
+                </span>
+                <span className="rounded bg-sidebar px-2 py-1 font-mono text-2xs">
+                  {repo.installStatus.replaceAll('_', ' ')}
+                </span>
+                {repo.topics.slice(0, 4).map((topic) => (
+                  <span key={topic} className="rounded border border-subtle px-2 py-1 text-2xs">
+                    {topic}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-4 space-y-2">
+                {formalCandidates.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="section-label">Detected candidates</p>
+                    {formalCandidates.map(renderCandidate)}
+                  </div>
+                )}
+                {readmeDrafts.length > 0 && (
+                  <div className="space-y-2 border-t border-subtle pt-3">
+                    <p className="section-label text-warning">README drafts</p>
+                    {readmeDrafts.map(renderCandidate)}
+                  </div>
+                )}
+                {!repo.candidates.length && (
+                  <p className="rounded border border-dashed border-subtle p-3 text-xs text-muted-foreground">
+                    No installable skill candidates were found in supported paths.
+                  </p>
+                )}
+              </div>
             </div>
-            </button>
           );
         })}
         {result && result.items.length === 0 && (
@@ -513,7 +700,7 @@ export function GithubSkillsMarketplace({
         )}
       </section>
 
-      <section className="surface-card p-4">
+      <section ref={installedSectionRef} className="surface-card p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-foreground">Installed from GitHub</p>
@@ -525,11 +712,51 @@ export function GithubSkillsMarketplace({
             {githubSkills.length} installed
           </span>
         </div>
+        {postInstallSkillName && (
+          <div className="mt-3 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">Installed but not selectable until reviewed.</p>
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  Review the imported files, then mark the skill reviewed or keep it untrusted.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={reviewNow} className="btn-ghost text-xs">
+                  Review now
+                </button>
+                <button
+                  onClick={() => postInstallSkill && void setTrust(postInstallSkill, 'reviewed')}
+                  disabled={!postInstallSkill}
+                  className="btn-ghost text-xs"
+                >
+                  Mark reviewed
+                </button>
+                <button
+                  onClick={() => setPostInstallSkillName(null)}
+                  className="btn-ghost text-xs"
+                >
+                  Keep untrusted
+                </button>
+                <button
+                  onClick={() => void openInstalledFolder(postInstallSkillName)}
+                  className="btn-ghost text-xs"
+                >
+                  <FolderOpen size={13} /> Open installed folder
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="mt-3 space-y-2">
           {githubSkills.map((skill) => (
             <div
               key={skill.name}
-              className="flex flex-wrap items-center gap-3 rounded border border-subtle bg-card/50 p-3"
+              className={`flex flex-wrap items-center gap-3 rounded border bg-card/50 p-3 ${
+                highlightedSkillName === skill.name
+                  ? 'border-warning/40'
+                  : 'border-subtle'
+              }`}
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-foreground">{skill.title}</p>
@@ -544,7 +771,11 @@ export function GithubSkillsMarketplace({
                     : 'border-warning/30 text-warning'
                 }`}
               >
-                {trustCanInject(skill) ? 'available to agents' : 'blocked from prompts'}
+                {trustCanInject(skill)
+                  ? 'available to agents'
+                  : skill.sourceContentKind === 'readme_draft'
+                    ? 'Draft — review required'
+                    : 'blocked from prompts'}
               </span>
               <select
                 value={skill.trustState}
@@ -627,11 +858,11 @@ export function GithubSkillsMarketplace({
             <header className="flex items-start justify-between border-b border-subtle px-5 py-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">
-                  {preview.repo.fullName}
+                  {preview.candidate.candidateName} / {preview.repo.fullName}
                 </p>
                 <p className="mt-1 text-2xs text-muted-foreground">
-                  {statusLabel(preview.repo.detectedSkillStatus)} / commit{' '}
-                  {preview.repo.latestCommitSha?.slice(0, 12) || 'unknown'}
+                  {candidateKindLabel(preview.candidate)} / {preview.candidatePath} / commit{' '}
+                  {preview.commitSha.slice(0, 12) || 'unknown'}
                 </p>
                 {preview.cached && (
                   <span className="mt-2 inline-flex rounded border border-subtle px-2 py-1 font-mono text-2xs text-muted-foreground">
@@ -679,6 +910,16 @@ export function GithubSkillsMarketplace({
                     <div>
                       <dt>Default branch</dt>
                       <dd className="font-mono text-foreground">{preview.repo.defaultBranch}</dd>
+                    </div>
+                    <div>
+                      <dt>Content kind</dt>
+                      <dd className="font-mono text-foreground">
+                        {preview.sourceContentKind}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Cached at</dt>
+                      <dd className="font-mono text-foreground">{preview.cachedAt}</dd>
                     </div>
                   </dl>
                 </div>
@@ -729,10 +970,10 @@ export function GithubSkillsMarketplace({
                     />
                     <span>
                       <span className="block font-semibold text-warning">
-                        Install README as skill draft
+                        Create draft from README
                       </span>
                       <span className="mt-1 block text-2xs text-muted-foreground">
-                        No formal SKILL.md was found. The imported README remains untrusted.
+                        Draft created from repository README. Review and edit before use.
                       </span>
                     </span>
                   </label>
@@ -754,7 +995,6 @@ export function GithubSkillsMarketplace({
                     disabled={
                       !preview.installable ||
                       busy === 'install' ||
-                      coreQuotaLow ||
                       (preview.readmeOnly && !allowReadmeDraft)
                     }
                     className="btn-primary text-xs"
@@ -764,7 +1004,7 @@ export function GithubSkillsMarketplace({
                     ) : (
                       <Download size={13} />
                     )}
-                    Install untrusted skill
+                    {preview.readmeOnly ? 'Create draft from README' : 'Install untrusted skill'}
                   </button>
                 </div>
               </main>

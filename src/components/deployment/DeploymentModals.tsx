@@ -13,6 +13,12 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import {
+  buildDeploymentDraft,
+  deploymentDraftFingerprint,
+  taskRequiresEditMode,
+  type DeploymentDraft,
+} from '../../lib/deploymentRunMode';
 import type {
   AgentEffort,
   AgentIsolationMode,
@@ -312,7 +318,7 @@ export function CreateAgentModal({
                       !compatible
                         ? 'Not compatible with this provider'
                         : !trustedForUse
-                          ? 'GitHub skill must be reviewed or trusted in Marketplace before use'
+                          ? 'Review this GitHub skill before enabling.'
                           : skill.description
                     }
                   >
@@ -326,7 +332,9 @@ export function CreateAgentModal({
                     <span className="min-w-0">
                       <span className="block truncate">{skill.manifest.title}</span>
                       <span className="block truncate font-mono text-2xs text-muted-foreground">
-                        {skill.name} / {skill.manifest.source} / {skill.trustState}
+                        {!trustedForUse
+                          ? 'Review this GitHub skill before enabling.'
+                          : `${skill.name} / ${skill.manifest.source} / ${skill.trustState}`}
                       </span>
                     </span>
                   </label>
@@ -365,15 +373,6 @@ function TargetIcon({ target }: { target: DeploymentTarget }) {
   return <GitBranch size={14} />;
 }
 
-export interface DeploymentDraft {
-  profile: AgentProfile;
-  task: string;
-  selectedSkills: string[];
-  isolationMode: AgentIsolationMode;
-  runMode: DeploymentRunMode;
-  runNow: boolean;
-}
-
 export function DeployAgentModal({
   open,
   target,
@@ -383,6 +382,7 @@ export function DeployAgentModal({
   onClose,
   onCreateAgent,
   onPreflight,
+  onPromptPreview,
   onDeploy,
 }: {
   open: boolean;
@@ -393,6 +393,7 @@ export function DeployAgentModal({
   onClose: () => void;
   onCreateAgent: () => void;
   onPreflight: (draft: DeploymentDraft) => Promise<DeploymentPreflightResult>;
+  onPromptPreview: (draft: DeploymentDraft) => string;
   onDeploy: (draft: DeploymentDraft) => Promise<void>;
 }) {
   const [step, setStep] = useState(1);
@@ -407,6 +408,8 @@ export function DeployAgentModal({
   const [preflightError, setPreflightError] = useState('');
   const [emptyInspectConfirmed, setEmptyInspectConfirmed] = useState(false);
   const [nonGitConfirmed, setNonGitConfirmed] = useState(false);
+  const [inspectBuildConfirmed, setInspectBuildConfirmed] = useState(false);
+  const [preflightDraft, setPreflightDraft] = useState<DeploymentDraft | null>(null);
 
   const profile = profiles.find((item) => item.id === profileId) ?? null;
 
@@ -424,16 +427,17 @@ export function DeployAgentModal({
     setPreflightError('');
     setEmptyInspectConfirmed(false);
     setNonGitConfirmed(false);
+    setInspectBuildConfirmed(false);
+    setPreflightDraft(null);
   }, [open, target?.targetPath]);
 
   useEffect(() => {
     if (!profile) return;
     setSelectedSkills(profile.defaultSkills);
     setIsolationMode(profile.isolationMode);
-    if (!profile.permissions.writeFiles) {
-      setRunMode('inspect_only');
-    }
     setPreflight(null);
+    setPreflightDraft(null);
+    setInspectBuildConfirmed(false);
   }, [profileId]);
 
   useEffect(() => {
@@ -476,24 +480,44 @@ export function DeployAgentModal({
     !preflight.hasSourceFiles &&
     (target.targetType === 'workspace' || target.targetType === 'folder');
   const nonGit = Boolean(preflight && preflight.gitStatus !== 'git_repo');
+  const inspectBuildMismatch = runMode === 'inspect_only' && taskRequiresEditMode(task);
+  const currentDraft = profile
+    ? buildDeploymentDraft({
+        profile,
+        task,
+        selectedSkills,
+        isolationMode,
+        runMode,
+        runNow,
+      })
+    : null;
+  const preflightMatchesCurrentDraft = Boolean(
+    currentDraft &&
+      preflightDraft &&
+      deploymentDraftFingerprint(currentDraft) === deploymentDraftFingerprint(preflightDraft) &&
+      preflight?.requestedRunMode === currentDraft.runMode
+  );
+  const promptPreview = preflightDraft ? onPromptPreview(preflightDraft) : '';
   const launchBlocked =
-    runNow &&
-    Boolean(
-      preflight?.blockers.length ||
-      (emptyTarget && (!emptyInspectConfirmed || runMode !== 'inspect_only')) ||
-      (nonGit && !nonGitConfirmed)
-    );
+    !preflightMatchesCurrentDraft ||
+    (runNow &&
+      Boolean(
+        preflight?.blockers.length ||
+          (emptyTarget && runMode === 'inspect_only' && !emptyInspectConfirmed) ||
+          (nonGit && !nonGitConfirmed) ||
+          (inspectBuildMismatch && !inspectBuildConfirmed)
+      ));
 
   const draftFor = (mode = runMode): DeploymentDraft | null =>
     profile
-      ? {
+      ? buildDeploymentDraft({
           profile,
           task,
           selectedSkills,
           isolationMode,
           runMode: mode,
           runNow,
-        }
+        })
       : null;
 
   const runPreflight = async (mode = runMode) => {
@@ -503,15 +527,29 @@ export function DeployAgentModal({
     setPreflightError('');
     try {
       const result = await onPreflight(draft);
+      if (result.requestedRunMode !== draft.runMode) {
+        throw new Error(
+          `Preflight run mode mismatch: requested ${draft.runMode}, received ${result.requestedRunMode}.`
+        );
+      }
       setPreflight(result);
       setNonGitConfirmed(false);
       if (result.gitStatus !== 'git_repo') {
         setIsolationMode('same_workspace');
+        setPreflightDraft(
+          buildDeploymentDraft({
+            ...draft,
+            isolationMode: 'same_workspace',
+          })
+        );
+      } else {
+        setPreflightDraft(draft);
       }
       if (result.hasSourceFiles) setEmptyInspectConfirmed(false);
       return result;
     } catch (error) {
       setPreflight(null);
+      setPreflightDraft(null);
       setPreflightError(error instanceof Error ? error.message : String(error));
     } finally {
       setPreflightBusy(false);
@@ -526,7 +564,16 @@ export function DeployAgentModal({
   const switchToEmptyInspection = async () => {
     setRunMode('inspect_only');
     setEmptyInspectConfirmed(true);
+    setInspectBuildConfirmed(false);
     await runPreflight('inspect_only');
+  };
+
+  const changeRunMode = (mode: DeploymentRunMode) => {
+    setRunMode(mode);
+    setPreflight(null);
+    setPreflightDraft(null);
+    setEmptyInspectConfirmed(false);
+    setInspectBuildConfirmed(false);
   };
 
   return (
@@ -664,7 +711,12 @@ export function DeployAgentModal({
                 <textarea
                   autoFocus
                   value={task}
-                  onChange={(event) => setTask(event.target.value)}
+                  onChange={(event) => {
+                    setTask(event.target.value);
+                    setPreflight(null);
+                    setPreflightDraft(null);
+                    setInspectBuildConfirmed(false);
+                  }}
                   placeholder="Describe the result you want at this deployment target."
                   className="mt-1 h-32 w-full resize-none rounded border border-subtle bg-input p-3 text-sm leading-relaxed text-foreground outline-none focus:border-ring"
                 />
@@ -678,10 +730,7 @@ export function DeployAgentModal({
                 <p className="section-label">Run mode</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => {
-                      setRunMode('inspect_only');
-                      setPreflight(null);
-                    }}
+                    onClick={() => changeRunMode('inspect_only')}
                     className={`rounded border p-3 text-left ${
                       runMode === 'inspect_only'
                         ? 'border-primary/35 bg-primary/[0.07]'
@@ -696,12 +745,8 @@ export function DeployAgentModal({
                     </span>
                   </button>
                   <button
-                    onClick={() => {
-                      setRunMode('edit');
-                      setPreflight(null);
-                    }}
-                    disabled={!profile.permissions.writeFiles}
-                    className={`rounded border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45 ${
+                    onClick={() => changeRunMode('edit')}
+                    className={`rounded border p-3 text-left ${
                       runMode === 'edit'
                         ? 'border-primary/35 bg-primary/[0.07]'
                         : 'border-subtle bg-card/50'
@@ -718,6 +763,43 @@ export function DeployAgentModal({
                     </span>
                   </button>
                 </div>
+                {runMode === 'edit' && !profile.permissions.writeFiles && (
+                  <p className="mt-2 rounded border border-error/30 bg-error/[0.06] p-3 text-xs text-error">
+                    Edit mode cannot run because this agent profile does not allow Write files.
+                    Enable Write files in the profile or choose Inspect target only.
+                  </p>
+                )}
+                {inspectBuildMismatch && (
+                  <div className="mt-3 rounded border border-coded/40 bg-coded/[0.08] p-4">
+                    <p className="text-sm font-semibold text-foreground">
+                      This is an inspect-only run. It will not create or edit files.
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This task appears to request a build or code change.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => changeRunMode('edit')}
+                        className="btn-primary text-xs"
+                      >
+                        Switch to Edit mode
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInspectBuildConfirmed(true)}
+                        className="btn-ghost text-xs"
+                      >
+                        Continue inspect-only
+                      </button>
+                    </div>
+                    {inspectBuildConfirmed && (
+                      <p className="mt-2 text-xs text-coded">
+                        Inspect-only continuation confirmed. No files may be changed.
+                      </p>
+                    )}
+                  </div>
+                )}
               </section>
               <section>
                 <p className="section-label">Installed local skills</p>
@@ -732,7 +814,7 @@ export function DeployAgentModal({
                         !compatible
                           ? 'Not compatible with selected provider'
                           : !trustedForUse
-                            ? 'This GitHub skill is untrusted. Review or trust it in Marketplace before use.'
+                            ? 'Review this GitHub skill before enabling.'
                             : skill.description
                       }
                     >
@@ -740,13 +822,15 @@ export function DeployAgentModal({
                         type="checkbox"
                         disabled={!compatible || !trustedForUse}
                         checked={selectedSkills.includes(skill.name)}
-                        onChange={() =>
+                        onChange={() => {
                           setSelectedSkills((current) =>
                             current.includes(skill.name)
                               ? current.filter((name) => name !== skill.name)
                               : [...current, skill.name]
-                          )
-                        }
+                          );
+                          setPreflight(null);
+                          setPreflightDraft(null);
+                        }}
                         className="mt-0.5 h-3.5 w-3.5 rounded border-subtle bg-input"
                       />
                       <span className="min-w-0">
@@ -756,7 +840,9 @@ export function DeployAgentModal({
                         <span className="block truncate font-mono text-2xs text-muted-foreground">
                           {!compatible
                             ? 'incompatible'
-                            : `${skill.manifest.source} / ${skill.trustState}`}
+                            : !trustedForUse
+                              ? 'Review this GitHub skill before enabling.'
+                              : `${skill.manifest.source} / ${skill.trustState}`}
                         </span>
                       </span>
                     </label>
@@ -768,7 +854,11 @@ export function DeployAgentModal({
                   <p className="section-label">Isolation</p>
                   <select
                     value={isolationMode}
-                    onChange={(event) => setIsolationMode(event.target.value as AgentIsolationMode)}
+                    onChange={(event) => {
+                      setIsolationMode(event.target.value as AgentIsolationMode);
+                      setPreflight(null);
+                      setPreflightDraft(null);
+                    }}
                     className="mt-2 w-full rounded border border-subtle bg-input px-3 py-2 text-sm text-foreground"
                   >
                     <option value="worktree_per_deployment">Worktree per deployment</option>
@@ -779,7 +869,11 @@ export function DeployAgentModal({
                   <p className="section-label">Launch</p>
                   <div className="mt-2 flex rounded border border-subtle bg-input p-1">
                     <button
-                      onClick={() => setRunNow(true)}
+                      onClick={() => {
+                        setRunNow(true);
+                        setPreflight(null);
+                        setPreflightDraft(null);
+                      }}
                       className={`flex-1 rounded px-2 py-1.5 text-xs ${
                         runNow ? 'bg-primary/15 text-primary' : 'text-muted-foreground'
                       }`}
@@ -787,7 +881,11 @@ export function DeployAgentModal({
                       Run now
                     </button>
                     <button
-                      onClick={() => setRunNow(false)}
+                      onClick={() => {
+                        setRunNow(false);
+                        setPreflight(null);
+                        setPreflightDraft(null);
+                      }}
                       className={`flex-1 rounded px-2 py-1.5 text-xs ${
                         !runNow ? 'bg-coded/15 text-coded' : 'text-muted-foreground'
                       }`}
@@ -816,6 +914,7 @@ export function DeployAgentModal({
                   ['Skills', selectedSkills.length ? selectedSkills.join(', ') : 'None'],
                   ['Run mode', runMode === 'inspect_only' ? 'Inspect only' : 'Edit'],
                   ['Sandbox', preflight?.effectiveSandbox ?? 'Preflight unavailable'],
+                  ['May create/edit files', runMode === 'edit' ? 'Yes' : 'No'],
                   [
                     'Isolation',
                     isolationMode === 'worktree_per_deployment'
@@ -835,6 +934,12 @@ export function DeployAgentModal({
                 <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                   {task}
                 </p>
+              </div>
+              <div className="mt-4 rounded border border-subtle bg-[#0b0d10] p-3">
+                <p className="section-label">Generated prompt preview</p>
+                <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap font-mono text-2xs leading-relaxed text-muted-foreground">
+                  {promptPreview || 'Run preflight to generate the exact runtime prompt.'}
+                </pre>
               </div>
               {preflight && (
                 <div className="mt-4 space-y-3">
@@ -871,7 +976,7 @@ export function DeployAgentModal({
                       {item.message}
                     </p>
                   ))}
-                  {emptyTarget && (
+                  {emptyTarget && runMode === 'inspect_only' && (
                     <div className="rounded border border-coded/30 bg-coded/[0.06] p-3">
                       <p className="text-xs font-semibold text-foreground">
                         This target has no source files. Deploying an agent may do nothing.
@@ -885,7 +990,7 @@ export function DeployAgentModal({
                           className="btn-primary text-xs"
                           disabled={preflightBusy}
                         >
-                          Run inspect-only anyway
+                          Continue inspect-only without source files
                         </button>
                         <button
                           disabled
@@ -896,6 +1001,12 @@ export function DeployAgentModal({
                         </button>
                       </div>
                     </div>
+                  )}
+                  {emptyTarget && runMode === 'edit' && (
+                    <p className="rounded border border-primary/30 bg-primary/[0.06] p-3 text-xs text-foreground">
+                      This target has no source files. Edit mode may create files inside the
+                      declared target scope.
+                    </p>
                   )}
                   {nonGit && (
                     <label className="flex items-start gap-2 rounded border border-coded/25 bg-coded/[0.04] p-3 text-xs text-muted-foreground">
@@ -934,7 +1045,12 @@ export function DeployAgentModal({
               onClick={() =>
                 step === 3 ? void continueFromTask() : setStep((current) => current + 1)
               }
-              disabled={!canContinue || customRunBlocked || preflightBusy}
+              disabled={
+                !canContinue ||
+                customRunBlocked ||
+                preflightBusy ||
+                (inspectBuildMismatch && !inspectBuildConfirmed)
+              }
               className="btn-primary text-xs disabled:opacity-45"
             >
               {preflightBusy ? <Loader2 size={12} className="animate-spin" /> : null}
@@ -944,17 +1060,16 @@ export function DeployAgentModal({
           ) : (
             <button
               onClick={() =>
-                profile &&
-                void onDeploy({
-                  profile,
-                  task,
-                  selectedSkills,
-                  isolationMode,
-                  runMode,
-                  runNow,
-                })
+                preflightDraft && void onDeploy(buildDeploymentDraft(preflightDraft))
               }
-              disabled={busy || customRunBlocked || preflightBusy || launchBlocked || !preflight}
+              disabled={
+                busy ||
+                customRunBlocked ||
+                preflightBusy ||
+                launchBlocked ||
+                !preflight ||
+                !preflightDraft
+              }
               className="btn-primary text-xs disabled:opacity-45"
             >
               {busy ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}

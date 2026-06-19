@@ -1,0 +1,26 @@
+{
+  "source": "github",
+  "repoFullName": "joeseesun/qiaomu-skill-publisher",
+  "repoUrl": "https://github.com/joeseesun/qiaomu-skill-publisher",
+  "defaultBranch": "main",
+  "commitSha": "8bd944b7723e710d38f9fa4034e8ba6addbbdfed",
+  "sourceContentKind": "formal_skill",
+  "candidateId": "formal:.",
+  "candidatePath": ".",
+  "skillMarkdownPath": "SKILL.md",
+  "skillJsonPath": null,
+  "readmePath": "README.md",
+  "installedAt": "1781721451",
+  "updatedAt": "1781721451",
+  "starsAtInstall": 29,
+  "forksAtInstall": 3,
+  "license": "MIT",
+  "fetchedFiles": [
+    "SKILL.md",
+    "README.md"
+  ],
+  "trusted": false,
+  "trustState": "reviewed",
+  "warning": "Remote code was not executed.",
+  "originalSkillJson": null
+}

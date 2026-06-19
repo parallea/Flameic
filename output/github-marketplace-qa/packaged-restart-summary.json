@@ -1,0 +1,16 @@
+{
+  "skillName": "qa-package-formal-mqiey6da",
+  "skillPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\github-marketplace-qa\\workspace-live\\.agentboard\\skills\\qa-package-formal-mqiey6da",
+  "repoFullName": "joeseesun/qiaomu-skill-publisher",
+  "trustState": "reviewed",
+  "enabled": true,
+  "sourceContentKind": "formal_skill",
+  "skillIndex": 4,
+  "modalSkill": {
+    "label": "qiaomu-skill-publisher\ngithub / reviewed",
+    "checkboxDisabled": false,
+    "checkboxChecked": false,
+    "modalText": "AgentBoard\n\nALPHA\n\nplan · run · review\n\nWorkspaces\nAgents\nHistory\nSkills\nSettings · soon\nWORKSPACES\nsample-workspace\n6\nNew folder (4)\n0\nsample-workspace\n6\nNew folder\n0\nworkspace-live\n0\nHokage\nAGENT PROFILES\nHokage\ncodex\nCLI AVAILABILITY\nClaude Code\nready\nCodex\nready\nGemini CLI\ninstall\nAider\ninstall\nGit\nready\nPowerShell\nready\nCMD\nready\nReport issue\n\nv0.1.0-alpha / trusted tester build\n\nCollapse\nAgentBoard\nALPHA BUILD\n/\nworkspace-live\n/\nOverview\nWorkspace loaded\nworkspace-live\n\n0 pipelines · 0 nodes · main\n\nPipeline\nHistory\nScanner\nGit\nSkills\n\nGetting started\n\nAgentBoard turns pipeline nodes into reviewed prompts, runs local agents in this workspace, and keeps their logs.\n\n1\nSelect a node\n2\nGenerate a prompt\n3\nReview and run\nRight-click items for more actions\n0\nActive agents\n0\nErrors\n1\nTasks today\n0\nPipelines\n5\nWorkspaces\nAsk an agent to…\nClaude Code · available\nCodex · available\nGemini CLI · install needed\nAider · install needed\nPowerShell · available\nCMD · available\nSelect a pipeline node\nCodex receives this as a task inside the workspace. Review the generated prompt before Run.\nCtrl+K\nfocus\n·\n4 skills\nisolated worktree\nQueue\nGenerate\nRun\nRunning agents / sessions\nView all\n\nNo running sessions\n\nStart an agent or run the PowerShell multi-agent smoke test. Each process receives its own session and log.\n\nRecent activity\n1\n\nHokage\n\nworkspace / workspace-live\n\nstaged / 18/6/2026, 12:07:37 am\nActive agents\nClaude Code\nCodex\nGemini CLI\nAider\nPowerShell\nCMD\nScanner\n0\nChanges\n18\nSkills\n6\nTerminal\n0 sessions\n\nDeploy agent\n\nChoose the target first, then the agent, task, and execution mode.\n\n1\nTarget\n2\nAgent\n3\nTask\n4\nConfirm\nTask\nTell the agent what to build, fix, inspect, or verify.\n\nRUN MODE\n\nInspect target only\nReport findings without editing. Codex uses a read-only sandbox.\nEdit target\nRequires a concrete task and profile write permission.\n\nINSTALLED LOCAL SKILLS\n\nDraft from Imbad0202/academic-research-skills README\ngithub / reviewed\nagent-skills-progressive-readme-updater\nReview this GitHub skill before enabling.\nqiaomu-skill-publisher\nReview this GitHub skill before enabling.\nqiaomu-skill-publisher\ngithub / reviewed\nqiaomu-skill-publisher\ngithub / reviewed\nqiaomu-skill-publisher\ngithub / reviewed\n\nISOLATION\n\nWorktree per deployment\nSame workspace\n\nLAUNCH\n\nRun now\nStage only\nBack\nRun preflight"
+  },
+  "selectable": true
+}

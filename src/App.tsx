@@ -54,12 +54,9 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  CreateAgentModal,
-  DeployAgentModal,
-  type DeploymentDraft,
-} from './components/deployment/DeploymentModals';
+import { CreateAgentModal, DeployAgentModal } from './components/deployment/DeploymentModals';
 import { GithubSkillsMarketplace } from './components/skills/GithubMarketplace';
+import type { DeploymentDraft } from './lib/deploymentRunMode';
 import { generateAgentPrompt, generateDeploymentPrompt } from './lib/prompt';
 import { agentboardApi, isDesktopRuntime, listenEvent } from './lib/tauri';
 import type {
@@ -68,11 +65,13 @@ import type {
   AgentId,
   AgentOutputEvent,
   AgentProfile,
+  AgentReview,
   AgentStatusEvent,
   AppBootstrap,
   DeploymentPreflightResult,
   DeploymentRunMode,
   DeploymentTarget,
+  EnvironmentBlocker,
   FileReadResult,
   NodeStatus,
   Pipeline,
@@ -80,6 +79,7 @@ import type {
   QueueItem,
   QueueStatus,
   RealityIssue,
+  ReviewChangedFile,
   SessionInfo,
   SessionStatus,
   SkillInfo,
@@ -1191,7 +1191,8 @@ function RocketCanvas({
                       </p>
                     </div>
                     <span className="shrink-0 font-mono text-2xs text-muted-foreground">
-                      {deployment.status} / {sessionTimestamp(deployment.createdAt)}
+                      {deploymentStatusLabel(deployment.status)} /{' '}
+                      {sessionTimestamp(deployment.createdAt)}
                     </span>
                   </button>
                 ))}
@@ -2036,6 +2037,8 @@ function SessionStatusDot({ status }: { status: SessionStatus }) {
           ? 'status-dot-running pulse-green'
           : status === 'failed' || status === 'external_blocked'
             ? 'status-dot-error'
+            : status === 'blocked_environment'
+              ? 'bg-coded'
             : status === 'completed' || status === 'completed_inspection'
               ? 'bg-accent'
               : status === 'stopped'
@@ -2142,6 +2145,9 @@ function RocketInspector({
     selection.kind === 'session'
       ? (sessions.find((item) => item.id === selection.id) ?? null)
       : null;
+  const deploymentSession = deployment?.sessionId
+    ? (sessions.find((item) => item.id === deployment.sessionId) ?? null)
+    : null;
   const skill =
     selection.kind === 'skill'
       ? (bundle?.skills.find((item) => item.name === selection.id) ?? null)
@@ -2561,7 +2567,9 @@ function RocketInspector({
                 <span
                   className={cn('h-2 w-2 rounded-full', deploymentStatusClass(deployment.status))}
                 />
-                <span className="text-xs font-medium text-foreground">{deployment.status}</span>
+                <span className="text-xs font-medium text-foreground">
+                  {deploymentStatusLabel(deployment.status)}
+                </span>
               </div>
               <InspectorProperty
                 label="Target"
@@ -2593,7 +2601,34 @@ function RocketInspector({
                 }
               />
               <InspectorProperty label="Created" value={sessionTimestamp(deployment.createdAt)} />
+              <InspectorProperty
+                label="Current session"
+                value={
+                  deploymentSession
+                    ? `${deploymentSession.id} / ${deploymentSession.runMode === 'edit' ? 'Edit' : 'Inspect only'}`
+                    : deployment.sessionId
+                      ? `${deployment.sessionId} / not loaded`
+                      : 'No session started'
+                }
+                mono
+              />
             </InspectorSection>
+            {deploymentSession?.status === 'blocked_environment' &&
+              deploymentSession.environmentBlocker && (
+                <InspectorSection label="Environment blocker">
+                  <EnvironmentBlockerCard
+                    blocker={deploymentSession.environmentBlocker}
+                    provider={agentLabels[deploymentSession.agent]}
+                  />
+                </InspectorSection>
+              )}
+            {deploymentSession && (
+              <AgentResultReview
+                session={deploymentSession}
+                deploymentId={deployment.id}
+                openRawLog={() => openSessionLog(deploymentSession)}
+              />
+            )}
             <InspectorSection label="Task and generated prompt">
               <p className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
                 {deployment.prompt}
@@ -2645,6 +2680,7 @@ function RocketInspector({
                 </span>
               </div>
               <InspectorProperty label="Started" value={sessionTimestamp(session.startedAt)} />
+              <InspectorProperty label="Session ID" value={session.id} mono />
               <InspectorProperty
                 label="Finished"
                 value={session.finishedAt ? sessionTimestamp(session.finishedAt) : 'In progress'}
@@ -2677,7 +2713,25 @@ function RocketInspector({
                     : 'None selected'
                 }
               />
+              {session.promptFilePath && (
+                <InspectorProperty label="Prompt file" value={session.promptFilePath} mono />
+              )}
+              {session.promptCharacterCount !== undefined && (
+                <InspectorProperty
+                  label="Prompt size"
+                  value={`${session.promptCharacterCount.toLocaleString()} characters`}
+                />
+              )}
             </InspectorSection>
+            {session.status === 'blocked_environment' && session.environmentBlocker && (
+              <InspectorSection label="Environment blocker">
+                <EnvironmentBlockerCard
+                  blocker={session.environmentBlocker}
+                  provider={agentLabels[session.agent]}
+                />
+              </InspectorSection>
+            )}
+            <AgentResultReview session={session} openRawLog={() => openSessionLog(session)} />
             <InspectorSection label="Prompt">
               <p className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
                 {session.prompt}
@@ -2815,6 +2869,427 @@ function InspectorProperty({
         {value}
       </span>
     </div>
+  );
+}
+
+function EnvironmentBlockerCard({
+  blocker,
+  provider,
+}: {
+  blocker: EnvironmentBlocker;
+  provider: string;
+}) {
+  return (
+    <div className="rounded border border-coded/35 bg-coded/[0.07] p-3 text-xs">
+      <p className="font-semibold text-foreground">Environment setup blocked the run</p>
+      <div className="mt-2 space-y-1 text-muted-foreground">
+        <p>
+          <span className="text-foreground">Provider:</span> {provider}
+        </p>
+        <p>
+          <span className="text-foreground">Missing tool/template:</span> {blocker.tool}
+        </p>
+        <p>
+          <span className="text-foreground">Cause:</span> {blocker.cause}
+        </p>
+        <p>
+          <span className="text-foreground">Next action:</span> {blocker.suggestedAction}
+        </p>
+      </div>
+      <p className="mt-3 font-semibold text-foreground">Choose a next step</p>
+      <ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">
+        {blocker.fallbackOptions.map((option) => (
+          <li key={option}>{option}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-2xs text-coded">
+        AgentBoard will not switch frameworks automatically.
+      </p>
+    </div>
+  );
+}
+
+function AgentResultReview({
+  session,
+  deploymentId,
+  openRawLog,
+}: {
+  session: SessionInfo;
+  deploymentId?: string;
+  openRawLog: () => void;
+}) {
+  const [review, setReview] = useState<AgentReview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'accept' | 'revert' | null>(null);
+  const [confirmRevert, setConfirmRevert] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReview(null);
+    setSelectedPath(null);
+    setLoadError(null);
+    if (session.runMode !== 'edit' || sessionIsActive(session.status)) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setLoading(true);
+    void agentboardApi
+      .getAgentReview(session.id)
+      .then((nextReview) => {
+        if (cancelled) return;
+        setReview(nextReview);
+        setSelectedPath(nextReview?.changedFiles[0]?.relativePath ?? null);
+      })
+      .catch((error) => {
+        if (!cancelled) setLoadError(humanizeError(error));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.id, session.runMode, session.status]);
+
+  if (session.runMode !== 'edit') {
+    return (
+      <InspectorSection label="Result review">
+        <InspectorEmpty>Inspect-only sessions do not create edit reviews.</InspectorEmpty>
+      </InspectorSection>
+    );
+  }
+
+  if (sessionIsActive(session.status)) {
+    return (
+      <InspectorSection label="Result review">
+        <InspectorEmpty>
+          The review will be generated when this edit session finishes.
+        </InspectorEmpty>
+      </InspectorSection>
+    );
+  }
+
+  if (loading) {
+    return (
+      <InspectorSection label="Result review">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 size={13} className="animate-spin" />
+          Loading persisted review
+        </div>
+      </InspectorSection>
+    );
+  }
+
+  if (loadError || !review) {
+    return (
+      <InspectorSection label="Result review">
+        <InspectorEmpty>
+          {loadError ?? 'No edit review was found for this completed session.'}
+        </InspectorEmpty>
+      </InspectorSection>
+    );
+  }
+
+  const selected =
+    review.changedFiles.find((file) => file.relativePath === selectedPath) ??
+    review.changedFiles[0] ??
+    null;
+  const revertable = review.changedFiles.filter((file) => file.canRevert);
+  const unavailable = review.changedFiles.filter((file) => !file.canRevert);
+
+  const accept = async () => {
+    try {
+      setBusy('accept');
+      const result = await agentboardApi.acceptAgentReview(review.reviewId);
+      setReview(result.review);
+      toast.success('Changes accepted', {
+        description: `${result.affectedFiles.length} reviewed file(s) retained.`,
+      });
+    } catch (error) {
+      toast.error('Accept failed', { description: humanizeError(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revert = async () => {
+    try {
+      setBusy('revert');
+      setConfirmRevert(false);
+      const result = await agentboardApi.revertAgentReview(review.reviewId);
+      setReview(result.review);
+      if (result.conflicts.length) {
+        toast.warning('Revert completed with conflicts', {
+          description: result.conflicts
+            .map((conflict) => `${conflict.relativePath}: ${conflict.reason}`)
+            .join('\n'),
+        });
+      } else {
+        toast.success('Tracked changes reverted', {
+          description: `${result.affectedFiles.length} file(s) restored or removed.`,
+        });
+      }
+    } catch (error) {
+      toast.error('Revert failed', { description: humanizeError(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const fileStateLabel = (file: ReviewChangedFile) => {
+    if (file.sensitive) return 'diff hidden';
+    if (file.binary) return 'binary';
+    if (file.largeFile) return 'large';
+    if (file.diffPreview) return 'diff available';
+    return 'no inline diff';
+  };
+
+  return (
+    <>
+      <InspectorSection label="Result review">
+        <div className="space-y-3">
+          <div className="rocket-soft-card space-y-2 p-3">
+            <p className="text-xs font-medium text-foreground">{review.resultSummary}</p>
+            <InspectorProperty label="Provider" value={review.provider} />
+            <InspectorProperty
+              label="Run mode"
+              value={review.runMode === 'edit' ? 'Edit' : 'Inspect only'}
+            />
+            <InspectorProperty label="Session status" value={sessionStatusLabel(session)} />
+            <InspectorProperty label="Review status" value={review.reviewStatus} />
+            <InspectorProperty label="Changed files" value={String(review.changedFiles.length)} />
+            {deploymentId && (
+              <InspectorProperty
+                label="Deployment"
+                value={review.deploymentId ?? deploymentId}
+                mono
+              />
+            )}
+            <div className="border-t border-subtle/70 pt-2">
+              <p className="truncate font-mono text-2xs text-muted-foreground">
+                {review.rawLogPath}
+              </p>
+              <button className="btn-ghost mt-2 w-full justify-center" onClick={openRawLog}>
+                <Terminal size={12} />
+                Open raw log
+              </button>
+            </div>
+          </div>
+
+          {review.changedFiles.length === 0 ? (
+            <InspectorEmpty>No user file changes detected.</InspectorEmpty>
+          ) : (
+            <div className="space-y-1">
+              {review.changedFiles.map((file) => (
+                <div
+                  key={file.relativePath}
+                  className={cn(
+                    'rounded-md border p-2',
+                    selected?.relativePath === file.relativePath
+                      ? 'border-primary/40 bg-primary/[0.06]'
+                      : 'border-subtle bg-card'
+                  )}
+                >
+                  <button
+                    className="w-full min-w-0 text-left"
+                    onClick={() => setSelectedPath(file.relativePath)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'tag-chip',
+                          file.changeType === 'created'
+                            ? 'text-primary'
+                            : file.changeType === 'deleted'
+                              ? 'text-error'
+                              : 'text-coded'
+                        )}
+                      >
+                        {file.changeType}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                        {file.relativePath}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-2xs text-muted-foreground">
+                      {fileStateLabel(file)}
+                      {!file.canRevert ? ' / revert unavailable' : ''}
+                    </p>
+                  </button>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      className="btn-ghost justify-center"
+                      disabled={file.changeType === 'deleted'}
+                      onClick={() =>
+                        void agentboardApi
+                          .openReviewFile(review.reviewId, file.relativePath)
+                          .catch((error) =>
+                            toast.error('Open file failed', {
+                              description: humanizeError(error),
+                            })
+                          )
+                      }
+                    >
+                      <FileCode size={11} />
+                      Open
+                    </button>
+                    <button
+                      className="btn-ghost justify-center"
+                      onClick={() =>
+                        void agentboardApi
+                          .revealReviewFile(review.reviewId, file.relativePath)
+                          .catch((error) =>
+                            toast.error('Reveal file failed', {
+                              description: humanizeError(error),
+                            })
+                          )
+                      }
+                    >
+                      <FolderOpen size={11} />
+                      Reveal
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selected && (
+            <div className="overflow-hidden rounded-md border border-subtle bg-[#0b0d10]">
+              <div className="border-b border-subtle px-3 py-2">
+                <p className="truncate font-mono text-2xs text-muted-foreground">
+                  {selected.relativePath}
+                </p>
+              </div>
+              {selected.sensitive ? (
+                <p className="p-3 text-xs leading-relaxed text-coded">
+                  Inline diff hidden because this file may contain secrets.
+                </p>
+              ) : selected.binary ? (
+                <p className="p-3 text-xs text-muted-foreground">
+                  Binary file changed. Inline diff is unavailable.
+                </p>
+              ) : selected.largeFile ? (
+                <p className="p-3 text-xs text-muted-foreground">
+                  Large file changed. Inline diff is unavailable.
+                </p>
+              ) : selected.diffPreview ? (
+                <pre className="max-h-80 overflow-auto whitespace-pre font-mono text-2xs leading-relaxed text-foreground/85">
+                  <code className="block min-w-max p-3">{selected.diffPreview}</code>
+                </pre>
+              ) : (
+                <p className="p-3 text-xs text-muted-foreground">
+                  No inline diff is available for this file.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="btn-primary justify-center"
+              disabled={review.reviewStatus !== 'pending' || busy !== null}
+              onClick={() => void accept()}
+            >
+              {busy === 'accept' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Check size={12} />
+              )}
+              Accept changes
+            </button>
+            <button
+              className="btn-ghost justify-center text-error"
+              disabled={
+                review.reviewStatus !== 'pending' ||
+                review.changedFiles.length === 0 ||
+                busy !== null
+              }
+              onClick={() => setConfirmRevert(true)}
+            >
+              {busy === 'revert' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RotateCcw size={12} />
+              )}
+              Revert changes
+            </button>
+          </div>
+          <button
+            className="btn-ghost w-full justify-center"
+            onClick={() =>
+              void agentboardApi
+                .openReviewFolder(review.reviewId)
+                .catch((error) =>
+                  toast.error('Open review folder failed', {
+                    description: humanizeError(error),
+                  })
+                )
+            }
+          >
+            <FolderOpen size={12} />
+            Open review folder
+          </button>
+        </div>
+      </InspectorSection>
+
+      {confirmRevert && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-subtle bg-card p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Revert tracked changes?</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  AgentBoard will only change files whose current content still matches this review.
+                </p>
+              </div>
+              <button
+                className="rocket-icon-button"
+                onClick={() => setConfirmRevert(false)}
+                aria-label="Cancel revert"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-4 max-h-56 overflow-auto rounded-md border border-subtle bg-muted/40 p-3">
+              {revertable.map((file) => (
+                <p key={file.relativePath} className="font-mono text-2xs text-foreground">
+                  {file.changeType}: {file.relativePath}
+                </p>
+              ))}
+              {unavailable.map((file) => (
+                <p key={file.relativePath} className="font-mono text-2xs text-coded">
+                  unavailable: {file.relativePath}
+                </p>
+              ))}
+            </div>
+            {unavailable.length > 0 && (
+              <p className="mt-3 text-2xs leading-relaxed text-coded">
+                {unavailable.length} file(s) cannot be safely reverted because a bounded snapshot or
+                expected hash is unavailable.
+              </p>
+            )}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button className="btn-ghost justify-center" onClick={() => setConfirmRevert(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn-primary justify-center"
+                disabled={revertable.length === 0}
+                onClick={() => void revert()}
+              >
+                <RotateCcw size={12} />
+                Confirm revert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -3171,6 +3646,9 @@ function sessionStatusLabel(session: SessionInfo) {
   if (session.status === 'external_blocked' && session.agent === 'claude') {
     return 'Claude access blocked';
   }
+  if (session.status === 'blocked_environment') {
+    return 'Blocked by environment';
+  }
   return session.status.replaceAll('_', ' ');
 }
 
@@ -3187,7 +3665,14 @@ function deploymentStatusClass(status: AgentDeployment['status']) {
   if (status === 'staged') return 'bg-coded';
   if (status === 'completed' || status === 'completed_inspection') return 'bg-accent';
   if (status === 'failed' || status === 'external_blocked') return 'bg-error';
+  if (status === 'blocked_environment') return 'bg-coded';
   return 'bg-muted-foreground';
+}
+
+function deploymentStatusLabel(status: AgentDeployment['status']) {
+  if (status === 'blocked_environment') return 'Blocked by environment';
+  if (status === 'external_blocked') return 'External access blocked';
+  return status.replaceAll('_', ' ');
 }
 
 function deploymentStatusFromSession(status: SessionStatus): AgentDeployment['status'] {
@@ -3223,8 +3708,17 @@ function queueStatusTone(status: QueueStatus) {
   if (status === 'failed' || status === 'external_blocked') {
     return 'border-error/30 bg-error/10 text-error';
   }
+  if (status === 'blocked_environment') {
+    return 'border-coded/30 bg-coded/10 text-coded';
+  }
   if (status === 'stopped') return 'border-coded/30 bg-coded/10 text-coded';
   return 'border-subtle bg-card text-muted-foreground';
+}
+
+function statusMatchesRunMode(runMode: DeploymentRunMode, status: SessionInfo['status']) {
+  if (status === 'completed_inspection') return runMode === 'inspect_only';
+  if (status === 'completed') return runMode === 'edit';
+  return true;
 }
 
 function nodeIdFromPrompt(prompt: string) {
@@ -3425,6 +3919,12 @@ export default function App() {
       if (!deployment.sessionId) return [];
       const session = sessions.find((item) => item.id === deployment.sessionId);
       if (!session) return [];
+      if (
+        deployment.runMode !== session.runMode ||
+        !statusMatchesRunMode(session.runMode, session.status)
+      ) {
+        return [];
+      }
       const status = deploymentStatusFromSession(session.status);
       const logPath = session.logPath || deployment.logPath;
       if (deployment.status === status && deployment.logPath === logPath) return [];
@@ -3587,6 +4087,13 @@ export default function App() {
         }));
       });
       const unlistenStatus = await listenEvent<AgentStatusEvent>('agent-status', ({ payload }) => {
+        if (!statusMatchesRunMode(payload.runMode, payload.status)) {
+          reportError(
+            'Session run mode mismatch',
+            `Session ${payload.sessionId} reported ${payload.status} for ${payload.runMode} mode.`
+          );
+          return;
+        }
         setSessions((prev) => {
           const found = prev.some((session) => session.id === payload.sessionId);
           if (!found) {
@@ -3600,6 +4107,7 @@ export default function App() {
                   ...session,
                   status: payload.status,
                   exitCode: payload.exitCode,
+                  environmentBlocker: payload.environmentBlocker,
                   finishedAt: sessionIsActive(payload.status)
                     ? session.finishedAt
                     : new Date().toISOString(),
@@ -3618,6 +4126,13 @@ export default function App() {
           (item) => item.sessionId === payload.sessionId
         );
         if (deployment) {
+          if (deployment.runMode !== payload.runMode) {
+            reportError(
+              'Deployment run mode mismatch',
+              `Deployment ${deployment.id} is ${deployment.runMode}, but session ${payload.sessionId} is ${payload.runMode}.`
+            );
+            return;
+          }
           void persistDeploymentUpdate({
             ...deployment,
             status: payload.status === 'idle' ? 'staged' : payload.status,
@@ -3644,6 +4159,14 @@ export default function App() {
           reportWarning(
             'Claude access blocked',
             payload.message ?? 'Claude subscription or organization access is unavailable.'
+          );
+        }
+        if (payload.status === 'blocked_environment') {
+          reportWarning(
+            'Agent blocked by local environment',
+            payload.environmentBlocker
+              ? `${payload.environmentBlocker.cause} ${payload.environmentBlocker.suggestedAction}`
+              : payload.message ?? 'Required local development tooling is unavailable.'
           );
         }
         if (payload.status === 'stopped') {
@@ -3771,6 +4294,7 @@ export default function App() {
       allowSharedWorkspace = false,
       selectedSkillNames,
       runMode = 'edit',
+      launchMetadata,
     }: {
       agent: AgentId;
       prompt: string;
@@ -3781,6 +4305,13 @@ export default function App() {
       allowSharedWorkspace?: boolean;
       selectedSkillNames?: string[];
       runMode?: DeploymentRunMode;
+      launchMetadata?: {
+        model?: string;
+        targetType?: string;
+        targetPath?: string;
+        targetLabel?: string;
+        deploymentId?: string;
+      };
     }) => {
       if (!bundle || !selectedWorkspace) {
         toast.error('Open a workspace first', {
@@ -3823,7 +4354,8 @@ export default function App() {
             runSkills.map((skill) => skill.name),
             nodeLabel,
             isolated,
-            sharedConfirmed
+            sharedConfirmed,
+            launchMetadata
           );
         const launchWithFallback = async () => {
           try {
@@ -3875,6 +4407,7 @@ export default function App() {
               ...session,
               status: pendingStatus.status,
               exitCode: pendingStatus.exitCode,
+              environmentBlocker: pendingStatus.environmentBlocker,
               finishedAt: sessionIsActive(pendingStatus.status)
                 ? session.finishedAt
                 : new Date().toISOString(),
@@ -3907,6 +4440,12 @@ export default function App() {
         setLogDrawerOpen(true);
         setLogDrawerExpanded(false);
         openInspector({ kind: 'session', id: session.id });
+        if (session.promptTransport === 'file') {
+          reportWarning(
+            'Prompt stored locally',
+            'Prompt was stored in a local prompt file to avoid Windows command-line length limits.'
+          );
+        }
         reportSuccess('Agent session started', session.logPath, true);
         return nextSession;
       } catch (error) {
@@ -3947,6 +4486,7 @@ export default function App() {
               ...session,
               status: pending.status,
               exitCode: pending.exitCode,
+              environmentBlocker: pending.environmentBlocker,
               finishedAt: sessionIsActive(pending.status)
                 ? session.finishedAt
                 : new Date().toISOString(),
@@ -4242,12 +4782,9 @@ export default function App() {
     [bundle, deploymentTarget, pipelines]
   );
 
-  const deployAgent = useCallback(
-    async (draft: DeploymentDraft) => {
-      if (!bundle || !deploymentTarget) {
-        reportError('Deployment failed', 'Open a workspace and choose a deployment target.');
-        return;
-      }
+  const previewDeploymentPrompt = useCallback(
+    (draft: DeploymentDraft) => {
+      if (!bundle || !deploymentTarget) return '';
       const pipeline = deploymentTarget.pipelineId
         ? pipelines.find((item) => item.id === deploymentTarget.pipelineId)
         : undefined;
@@ -4255,7 +4792,7 @@ export default function App() {
         ? pipeline?.nodes.find((item) => item.id === deploymentTarget.nodeId)
         : undefined;
       const nodePaths = new Set(node?.files.map((file) => normalizedPath(file.path)) ?? []);
-      const prompt = generateDeploymentPrompt({
+      return generateDeploymentPrompt({
         workspace: bundle.workspace,
         target: deploymentTarget,
         profile: draft.profile,
@@ -4267,24 +4804,50 @@ export default function App() {
         node,
         scanIssues: scanResults.filter((issue) => nodePaths.has(normalizedPath(issue.file))),
       });
-      const timestamp = String(Date.now());
-      const deployment: AgentDeployment = {
-        id: nowId('deployment'),
-        agentProfileId: draft.profile.id,
-        agentName: draft.profile.name,
-        ...deploymentTarget,
-        selectedSkills: draft.selectedSkills,
-        prompt,
-        runMode: draft.runMode,
-        isolationMode: draft.isolationMode,
-        status: 'staged',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
+    },
+    [bundle, deploymentTarget, pipelines, scanResults]
+  );
 
+  const deployAgent = useCallback(
+    async (draft: DeploymentDraft) => {
+      if (!bundle || !deploymentTarget) {
+        reportError('Deployment failed', 'Open a workspace and choose a deployment target.');
+        return;
+      }
       try {
         setBusyAction('deploy-agent');
+        const finalPreflight = await preflightDeployment(draft);
+        if (finalPreflight.requestedRunMode !== draft.runMode) {
+          throw new Error(
+            `Run mode changed during preflight: expected ${draft.runMode}, received ${finalPreflight.requestedRunMode}.`
+          );
+        }
+        if (draft.runNow && finalPreflight.blockers.length) {
+          throw new Error(
+            finalPreflight.blockers.map((blocker) => blocker.message).join(' ')
+          );
+        }
+        const prompt = previewDeploymentPrompt(draft);
+        const timestamp = String(Date.now());
+        const deployment: AgentDeployment = {
+          id: nowId('deployment'),
+          agentProfileId: draft.profile.id,
+          agentName: draft.profile.name,
+          ...deploymentTarget,
+          selectedSkills: draft.selectedSkills,
+          prompt,
+          runMode: draft.runMode,
+          isolationMode: draft.isolationMode,
+          status: 'staged',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
         const saved = await agentboardApi.saveDeployment(deployment);
+        if (saved.runMode !== draft.runMode) {
+          throw new Error(
+            `Saved deployment run mode mismatch: expected ${draft.runMode}, received ${saved.runMode}.`
+          );
+        }
         setDeployments((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
         deploymentsRef.current = [
           saved,
@@ -4312,7 +4875,14 @@ export default function App() {
           nodeLabel: deploymentTarget.nodeName ?? deploymentTarget.targetLabel,
           useWorktree: draft.isolationMode === 'worktree_per_deployment',
           selectedSkillNames: draft.selectedSkills,
-          runMode: draft.runMode,
+          runMode: saved.runMode,
+          launchMetadata: {
+            model: draft.profile.model,
+            targetType: deploymentTarget.targetType,
+            targetPath: deploymentTarget.targetPath,
+            targetLabel: deploymentTarget.targetLabel,
+            deploymentId: saved.id,
+          },
         });
         if (!session) {
           reportWarning(
@@ -4320,6 +4890,14 @@ export default function App() {
             'The backend session did not start. Review the reported launch error.'
           );
           return;
+        }
+        if (session.runMode !== saved.runMode) {
+          if (sessionIsActive(session.status)) {
+            await agentboardApi.stopSession(session.id).catch(() => undefined);
+          }
+          throw new Error(
+            `Started session run mode mismatch: deployment is ${saved.runMode}, session is ${session.runMode}.`
+          );
         }
         const runningDeployment: AgentDeployment = {
           ...saved,
@@ -4343,11 +4921,11 @@ export default function App() {
       deploymentTarget,
       openInspector,
       persistDeploymentUpdate,
-      pipelines,
+      preflightDeployment,
+      previewDeploymentPrompt,
       reportError,
       reportSuccess,
       reportWarning,
-      scanResults,
       startAgentSession,
     ]
   );
@@ -5367,6 +5945,7 @@ export default function App() {
         onClose={() => setDeployAgentOpen(false)}
         onCreateAgent={() => openCreateAgent()}
         onPreflight={preflightDeployment}
+        onPromptPreview={previewDeploymentPrompt}
         onDeploy={deployAgent}
       />
       <CreateAgentModal
@@ -6213,6 +6792,8 @@ function TimelineView({
                         ? 'status-dot-running pulse-green'
                         : session.status === 'failed' || session.status === 'external_blocked'
                           ? 'status-dot-error'
+                          : session.status === 'blocked_environment'
+                            ? 'bg-coded'
                           : 'status-dot-idle'
                     )}
                   />
@@ -6435,6 +7016,8 @@ function LogsView({
                         'block truncate font-mono text-2xs',
                         session.status === 'failed' || session.status === 'external_blocked'
                           ? 'text-error'
+                          : session.status === 'blocked_environment'
+                            ? 'text-coded'
                           : 'text-muted-foreground'
                       )}
                     >
@@ -6459,6 +7042,8 @@ function LogsView({
                   'block font-mono text-2xs',
                   active.status === 'failed' || active.status === 'external_blocked'
                     ? 'text-error'
+                    : active.status === 'blocked_environment'
+                      ? 'text-coded'
                     : 'text-muted-foreground'
                 )}
               >

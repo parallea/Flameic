@@ -1,0 +1,49 @@
+{
+  "reviewId": "review-session-1781864442901-2740-0",
+  "sessionId": "session-1781864442901-2740-0",
+  "deploymentId": "deployment-mqks2zgp-ecov6",
+  "workspacePath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "targetPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "executionPath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopeKind": "directory",
+  "provider": "powershell",
+  "runMode": "edit",
+  "createdAt": "1781864442",
+  "rawLogPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.agentboard\\logs\\powershell-session-1781864442901-2740-0.log",
+  "files": [
+    {
+      "relativePath": ".env",
+      "absolutePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.env",
+      "size": 13,
+      "hash": "fnv1a64:13617feefecbaf5e",
+      "modifiedAt": 1781863181716061900,
+      "binary": false,
+      "largeFile": false,
+      "sensitive": true,
+      "snapshotPath": null
+    },
+    {
+      "relativePath": "README.md",
+      "absolutePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\README.md",
+      "size": 28,
+      "hash": "fnv1a64:d3ad8b71e4f96ceb",
+      "modifiedAt": 1781863181632062800,
+      "binary": false,
+      "largeFile": false,
+      "sensitive": false,
+      "snapshotPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.agentboard\\reviews\\session-1781864442901-2740-0\\before\\README.md"
+    },
+    {
+      "relativePath": "hello.txt",
+      "absolutePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\hello.txt",
+      "size": 30,
+      "hash": "fnv1a64:caa3a00b14f9556d",
+      "modifiedAt": 1781864071687929400,
+      "binary": false,
+      "largeFile": false,
+      "sensitive": false,
+      "snapshotPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.agentboard\\reviews\\session-1781864442901-2740-0\\before\\hello.txt"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "qa-nested-formal",
+  "title": "agent-skills-progressive-readme-updater",
+  "description": "",
+  "categories": [
+    "github",
+    "imported"
+  ],
+  "compatible_agents": [
+    "codex",
+    "claude",
+    "gemini",
+    "aider"
+  ],
+  "version": "0.1.0",
+  "source": "github",
+  "trusted": false,
+  "permissions": {
+    "filesystem": "read",
+    "shell": false,
+    "network": false
+  }
+}

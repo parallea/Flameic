@@ -1,0 +1,23 @@
+{
+  "name": "qa-package-formal-mqiey6da",
+  "title": "qiaomu-skill-publisher",
+  "description": "Publish agent skills to GitHub with attractive README checks, repo-name/skill-name safety, and real npx skills install verification.",
+  "categories": [
+    "github",
+    "imported"
+  ],
+  "compatible_agents": [
+    "codex",
+    "claude",
+    "gemini",
+    "aider"
+  ],
+  "version": "0.1.0",
+  "source": "github",
+  "trusted": false,
+  "permissions": {
+    "filesystem": "read",
+    "shell": false,
+    "network": false
+  }
+}

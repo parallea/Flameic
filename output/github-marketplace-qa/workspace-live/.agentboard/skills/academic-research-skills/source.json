@@ -1,0 +1,25 @@
+{
+  "source": "github",
+  "repoFullName": "Imbad0202/academic-research-skills",
+  "repoUrl": "https://github.com/Imbad0202/academic-research-skills",
+  "defaultBranch": "main",
+  "commitSha": "88fc003e6abf5fe9fe86dc8200f8d4aa8d511956",
+  "sourceContentKind": "readme_draft",
+  "candidateId": "readme:.",
+  "candidatePath": ".",
+  "skillMarkdownPath": null,
+  "skillJsonPath": null,
+  "readmePath": "README.md",
+  "installedAt": "1781713697",
+  "updatedAt": "1781714628",
+  "starsAtInstall": 32389,
+  "forksAtInstall": 2661,
+  "license": "Other",
+  "fetchedFiles": [
+    "README.md"
+  ],
+  "trusted": false,
+  "trustState": "reviewed",
+  "warning": "Draft created from repository README. Review and edit before use.",
+  "originalSkillJson": null
+}

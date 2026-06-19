@@ -1,0 +1,34 @@
+{
+  "reviewId": "review-session-1781864442901-2740-0",
+  "sessionId": "session-1781864442901-2740-0",
+  "deploymentId": "deployment-mqks2zgp-ecov6",
+  "workspacePath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "targetPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "executionPath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace",
+  "scopeKind": "directory",
+  "provider": "powershell",
+  "runMode": "edit",
+  "sessionStatus": "completed",
+  "reviewStatus": "reverted",
+  "createdAt": "1781864442",
+  "completedAt": "1781864443",
+  "rawLogPath": "C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\.agentboard\\logs\\powershell-session-1781864442901-2740-0.log",
+  "resultSummary": "1 user file change detected: 1 created, 0 modified, 0 deleted",
+  "changedFiles": [
+    {
+      "relativePath": "temp-review-test.txt",
+      "absolutePath": "\\\\?\\C:\\Users\\ayush\\OneDrive\\Desktop\\Flameic\\output\\playwright\\agent-review-workspace\\temp-review-test.txt",
+      "changeType": "created",
+      "oldHash": null,
+      "newHash": "fnv1a64:91c7f21e6a3955a8",
+      "oldSize": 0,
+      "newSize": 26,
+      "diffPreview": "--- /dev/null\n+++ b/temp-review-test.txt\n@@ -1,0 +1,1 @@\n+temporary review content\n",
+      "binary": false,
+      "largeFile": false,
+      "sensitive": false,
+      "canRevert": true
+    }
+  ]
+}

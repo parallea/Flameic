@@ -62,7 +62,7 @@ const component = readFileSync(
   'utf8'
 );
 assert.match(component, /disabled=\{!previewEnabled\}/);
-assert.match(component, /coreQuotaLow \|\|/);
+assert.doesNotMatch(component, /coreQuotaLow \|\|/);
 assert.match(component, /\{coreQuotaLow && \([\s\S]*?Add GitHub token/);
 assert.match(component, /cached preview/);
 

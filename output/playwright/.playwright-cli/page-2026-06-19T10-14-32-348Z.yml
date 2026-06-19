@@ -1,0 +1,446 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - paragraph [ref=e12]: AgentBoard
+            - generic [ref=e13]: Alpha
+          - paragraph [ref=e14]: plan · run · review
+      - navigation [ref=e15]:
+        - button "Workspaces" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e22]: Workspaces
+        - button "Agents" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e27]: Agents
+        - button "History" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - generic [ref=e33]: History
+        - button "Skills" [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+          - generic [ref=e37]: Skills
+        - button "Settings · soon" [disabled] [ref=e38]:
+          - img [ref=e39]
+          - generic [ref=e42]: Settings · soon
+      - generic [ref=e45]:
+        - img [ref=e46]
+        - textbox "Filter workspaces" [ref=e49]
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]: Workspaces
+          - button "Open Folder" [ref=e53] [cursor=pointer]:
+            - img [ref=e54]
+        - button "agent-review-workspace 0" [ref=e460] [cursor=pointer]:
+          - img [ref=e461]
+          - generic [ref=e463]: agent-review-workspace
+          - generic [ref=e464]: "0"
+          - img [ref=e465]
+        - button "Review QA PowerShell" [ref=e796] [cursor=pointer]:
+          - generic [ref=e798]: Review QA PowerShell
+        - button "sample-workspace 6" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e58]: sample-workspace
+          - generic [ref=e59]: "6"
+          - img [ref=e60]
+        - button "New folder (4) 0" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - generic [ref=e67]: New folder (4)
+          - generic [ref=e68]: "0"
+          - img [ref=e69]
+        - button "sample-workspace 6" [ref=e73] [cursor=pointer]:
+          - img [ref=e74]
+          - generic [ref=e76]: sample-workspace
+          - generic [ref=e77]: "6"
+          - img [ref=e78]
+        - button "New folder 0" [ref=e82] [cursor=pointer]:
+          - img [ref=e83]
+          - generic [ref=e85]: New folder
+          - generic [ref=e86]: "0"
+          - img [ref=e87]
+        - button "workspace-live 0" [ref=e91] [cursor=pointer]:
+          - img [ref=e92]
+          - generic [ref=e94]: workspace-live
+          - generic [ref=e95]: "0"
+          - img [ref=e96]
+        - button "New folder 0" [ref=e100] [cursor=pointer]:
+          - img [ref=e101]
+          - generic [ref=e103]: New folder
+          - generic [ref=e104]: "0"
+          - img [ref=e105]
+        - generic [ref=e110]:
+          - generic [ref=e111]: Agent profiles
+          - button "Create Agent" [ref=e112] [cursor=pointer]:
+            - img [ref=e113]
+        - button "Review QA PowerShell powershell" [ref=e695] [cursor=pointer]:
+          - img [ref=e696]
+          - generic [ref=e699]: Review QA PowerShell
+          - generic [ref=e700]: powershell
+        - button "Builder Agent codex" [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+          - generic [ref=e118]: Builder Agent
+          - generic [ref=e119]: codex
+        - button "calci builder codex" [ref=e120] [cursor=pointer]:
+          - img [ref=e121]
+          - generic [ref=e124]: calci builder
+          - generic [ref=e125]: codex
+        - button "Hokage codex" [ref=e126] [cursor=pointer]:
+          - img [ref=e127]
+          - generic [ref=e130]: Hokage
+          - generic [ref=e131]: codex
+        - button "kasukage codex" [ref=e132] [cursor=pointer]:
+          - img [ref=e133]
+          - generic [ref=e136]: kasukage
+          - generic [ref=e137]: codex
+        - button "mesokage codex" [ref=e138] [cursor=pointer]:
+          - img [ref=e139]
+          - generic [ref=e142]: mesokage
+          - generic [ref=e143]: codex
+        - generic [ref=e144]: CLI availability
+        - button "Claude Code ready" [ref=e145] [cursor=pointer]:
+          - generic [ref=e147]: Claude Code
+          - generic [ref=e148]: ready
+          - img [ref=e149]
+        - button "Codex ready" [ref=e153] [cursor=pointer]:
+          - generic [ref=e155]: Codex
+          - generic [ref=e156]: ready
+          - img [ref=e157]
+        - button "Gemini CLI install" [ref=e161] [cursor=pointer]:
+          - generic [ref=e163]: Gemini CLI
+          - generic [ref=e164]: install
+          - img [ref=e165]
+        - button "Aider install" [ref=e169] [cursor=pointer]:
+          - generic [ref=e171]: Aider
+          - generic [ref=e172]: install
+          - img [ref=e173]
+        - button "Git ready" [ref=e177] [cursor=pointer]:
+          - generic [ref=e179]: Git
+          - generic [ref=e180]: ready
+          - img [ref=e181]
+        - button "PowerShell ready" [ref=e185] [cursor=pointer]:
+          - generic [ref=e187]: PowerShell
+          - generic [ref=e188]: ready
+          - img [ref=e189]
+        - button "CMD ready" [ref=e193] [cursor=pointer]:
+          - generic [ref=e195]: CMD
+          - generic [ref=e196]: ready
+          - img [ref=e197]
+      - generic [ref=e201]:
+        - button "Report issue" [ref=e202] [cursor=pointer]:
+          - img [ref=e203]
+          - text: Report issue
+        - paragraph [ref=e212]: v0.1.0-alpha / trusted tester build
+        - button "Collapse" [ref=e213] [cursor=pointer]:
+          - img [ref=e214]
+          - text: Collapse
+    - main [ref=e216]:
+      - generic [ref=e217]:
+        - generic [ref=e218]:
+          - generic [ref=e219]: AgentBoard
+          - generic [ref=e220]: Alpha build
+          - generic [ref=e221]: /
+          - generic [ref=e222]: agent-review-workspace
+          - generic [ref=e223]: /
+          - generic [ref=e224]: Overview
+        - generic "Session session-1781864071358-11704-0" [ref=e799]:
+          - generic [ref=e227]: Agent session completed
+        - button "Collapse session logs" [ref=e800] [cursor=pointer]:
+          - img [ref=e229]
+          - text: Close logs
+        - button "Open workspace folder" [ref=e231] [cursor=pointer]:
+          - img [ref=e232]
+          - text: Open workspace
+        - button "Refresh workspaces and agent availability" [ref=e234] [cursor=pointer]:
+          - img [ref=e235]
+          - text: Refresh
+      - generic [ref=e240]:
+        - generic [ref=e243]:
+          - generic [ref=e244]:
+            - generic [ref=e245]:
+              - heading "agent-review-workspace" [level=1] [ref=e470]
+              - paragraph [ref=e247]: 0 pipelines · 0 nodes · main
+            - generic [ref=e248]:
+              - button "Pipeline" [ref=e249] [cursor=pointer]:
+                - img [ref=e250]
+                - text: Pipeline
+              - button "History" [ref=e254] [cursor=pointer]:
+                - img [ref=e255]
+                - text: History
+              - button "Scanner" [ref=e259] [cursor=pointer]:
+                - img [ref=e260]
+                - text: Scanner
+              - button "Git" [ref=e262] [cursor=pointer]:
+                - img [ref=e263]
+                - text: Git
+              - button "Skills" [ref=e268] [cursor=pointer]:
+                - img [ref=e269]
+                - text: Skills
+          - generic [ref=e271]:
+            - generic [ref=e272]:
+              - generic [ref=e273]:
+                - img [ref=e274]
+                - paragraph [ref=e276]: Getting started
+              - paragraph [ref=e277]: AgentBoard turns pipeline nodes into reviewed prompts, runs local agents in this workspace, and keeps their logs.
+            - generic [ref=e278]:
+              - button "1 Select a node" [ref=e279] [cursor=pointer]:
+                - generic [ref=e280]: "1"
+                - text: Select a node
+              - button "2 Generate a prompt" [ref=e281] [cursor=pointer]:
+                - generic [ref=e282]: "2"
+                - text: Generate a prompt
+              - button "3 Review and run" [ref=e283] [cursor=pointer]:
+                - generic [ref=e284]: "3"
+                - text: Review and run
+              - generic [ref=e285]:
+                - img [ref=e286]
+                - text: Right-click items for more actions
+            - button "Dismiss getting started" [ref=e290] [cursor=pointer]:
+              - img [ref=e291]
+              - text: Dismiss
+          - generic [ref=e294]:
+            - button "0 Active agents" [ref=e295] [cursor=pointer]:
+              - img [ref=e296]
+              - generic [ref=e299]: "0"
+              - generic [ref=e300]: Active agents
+            - button "0 Errors" [ref=e471] [cursor=pointer]:
+              - img [ref=e302]
+              - generic [ref=e304]: "0"
+              - generic [ref=e305]: Errors
+            - button "1 Tasks today" [ref=e801] [cursor=pointer]:
+              - img [ref=e307]
+              - generic [ref=e309]: "1"
+              - generic [ref=e310]: Tasks today
+            - button "0 Pipelines" [ref=e472] [cursor=pointer]:
+              - img [ref=e312]
+              - generic [ref=e316]: "0"
+              - generic [ref=e317]: Pipelines
+            - button "7 Workspaces" [ref=e473] [cursor=pointer]:
+              - img [ref=e319]
+              - generic [ref=e321]: "7"
+              - generic [ref=e322]: Workspaces
+          - generic [ref=e323]:
+            - generic [ref=e324]:
+              - img [ref=e325]
+              - generic [ref=e328]: Ask an agent to…
+              - generic [ref=e329]:
+                - combobox [ref=e330]:
+                  - option "Claude Code · available"
+                  - option "Codex · available"
+                  - option "Gemini CLI · install needed"
+                  - option "Aider · install needed"
+                  - option "PowerShell · available" [selected]
+                  - option "CMD · available"
+                - generic [ref=e331]: Select a pipeline node
+            - generic [ref=e332]:
+              - img [ref=e333]
+              - generic [ref=e335]: PowerShell runs this field as a local command in the workspace. Review it before Run.
+              - generic [ref=e483]:
+                - button "Use safe smoke command" [ref=e484] [cursor=pointer]
+                - button "Run multi-agent smoke" [ref=e485] [cursor=pointer]
+            - textbox "Describe the result you want, or generate a node-aware prompt…" [ref=e336]: Set-Content -LiteralPath hello.txt -Value 'Hello from AgentBoard review'
+            - generic [ref=e337]:
+              - generic [ref=e338]:
+                - generic [ref=e339]: Ctrl+K
+                - generic [ref=e340]: focus
+                - generic [ref=e341]: ·
+                - generic [ref=e342]: 0 skills
+                - generic "Create a unique Git worktree for this pipeline-node session" [ref=e343]:
+                  - checkbox "isolated worktree" [ref=e344]
+                  - text: isolated worktree
+              - generic [ref=e345]:
+                - button "Queue" [ref=e346] [cursor=pointer]:
+                  - img [ref=e347]
+                  - text: Queue
+                - button "Generate" [ref=e348] [cursor=pointer]:
+                  - img [ref=e349]
+                  - text: Generate
+                - button "Run" [ref=e352] [cursor=pointer]:
+                  - img [ref=e802]
+                  - text: Run
+          - generic [ref=e355]:
+            - generic [ref=e356]:
+              - generic [ref=e357]:
+                - heading "Running agents / sessions" [level=2] [ref=e358]
+                - button "View all" [ref=e359] [cursor=pointer]
+              - generic [ref=e804]:
+                - img [ref=e805]
+                - paragraph [ref=e807]: No running sessions
+                - paragraph [ref=e808]: Start an agent or run the PowerShell multi-agent smoke test. Each process receives its own session and log.
+              - generic [ref=e366]:
+                - heading "Recent activity" [level=2] [ref=e367]
+                - generic [ref=e368]: "1"
+              - button "Review QA PowerShell workspace / agent-review-workspace completed / 19/6/2026, 3:44:31 pm" [ref=e809] [cursor=pointer]:
+                - generic [ref=e811]:
+                  - paragraph [ref=e812]: Review QA PowerShell
+                  - paragraph [ref=e813]: workspace / agent-review-workspace
+                - generic [ref=e814]: completed / 19/6/2026, 3:44:31 pm
+            - generic [ref=e394]:
+              - heading "Active agents" [level=2] [ref=e395]
+              - generic [ref=e396]:
+                - generic [ref=e397]:
+                  - button "Claude Code" [ref=e398] [cursor=pointer]: Claude Code
+                  - button "Codex" [ref=e400] [cursor=pointer]: Codex
+                  - button "Gemini CLI" [ref=e402] [cursor=pointer]: Gemini CLI
+                  - button "Aider" [ref=e404] [cursor=pointer]: Aider
+                  - button "PowerShell" [ref=e406] [cursor=pointer]: PowerShell
+                  - button "CMD" [ref=e408] [cursor=pointer]: CMD
+                - generic [ref=e410]:
+                  - button "Scanner 0" [ref=e411] [cursor=pointer]:
+                    - img [ref=e412]
+                    - generic [ref=e414]: Scanner
+                    - strong [ref=e415]: "0"
+                  - button "Changes 28" [ref=e416] [cursor=pointer]:
+                    - generic [ref=e422]: Changes
+                    - strong [ref=e423]: "28"
+                  - button "Skills 0" [ref=e474] [cursor=pointer]:
+                    - img [ref=e425]
+                    - generic [ref=e427]: Skills
+                    - strong [ref=e428]: "0"
+        - complementary "Agent deployment inspector" [ref=e815]:
+          - generic [ref=e816]:
+            - generic [ref=e817]:
+              - paragraph [ref=e818]: Agent deployment
+              - heading "Review QA PowerShell" [level=2] [ref=e819]
+            - button "Close inspector" [ref=e820] [cursor=pointer]:
+              - img [ref=e821]
+              - text: Close
+          - generic [ref=e825]:
+            - generic [ref=e826]:
+              - paragraph [ref=e827]: Deployment status
+              - generic [ref=e830]: completed
+              - generic [ref=e831]:
+                - generic [ref=e832]: Target
+                - generic [ref=e833]: workspace / agent-review-workspace
+              - generic [ref=e834]:
+                - generic [ref=e835]: Path
+                - generic [ref=e836]: C:\Users\ayush\OneDrive\Desktop\Flameic\output\playwright\agent-review-workspace
+              - generic [ref=e837]:
+                - generic [ref=e838]: Isolation
+                - generic [ref=e839]: Same workspace
+              - generic [ref=e840]:
+                - generic [ref=e841]: Run mode
+                - generic [ref=e842]: Edit
+              - generic [ref=e843]:
+                - generic [ref=e844]: Skills
+                - generic [ref=e845]: None
+              - generic [ref=e846]:
+                - generic [ref=e847]: Created
+                - generic [ref=e848]: 19/6/2026, 3:44:31 pm
+              - generic [ref=e849]:
+                - generic [ref=e850]: Current session
+                - generic [ref=e851]: session-1781864071358-11704-0 / Edit
+            - generic [ref=e852]:
+              - paragraph [ref=e853]: Result review
+              - generic [ref=e854]:
+                - generic [ref=e855]:
+                  - paragraph [ref=e856]: "1 user file change detected: 1 created, 0 modified, 0 deleted"
+                  - generic [ref=e857]:
+                    - generic [ref=e858]: Provider
+                    - generic [ref=e859]: powershell
+                  - generic [ref=e860]:
+                    - generic [ref=e861]: Run mode
+                    - generic [ref=e862]: Edit
+                  - generic [ref=e863]:
+                    - generic [ref=e864]: Session status
+                    - generic [ref=e865]: completed
+                  - generic [ref=e866]:
+                    - generic [ref=e867]: Review status
+                    - generic [ref=e868]: pending
+                  - generic [ref=e869]:
+                    - generic [ref=e870]: Changed files
+                    - generic [ref=e871]: "1"
+                  - generic [ref=e872]:
+                    - generic [ref=e873]: Deployment
+                    - generic [ref=e874]: deployment-mqkrv0s2-5n0cd
+                  - generic [ref=e875]:
+                    - paragraph [ref=e876]: C:\Users\ayush\OneDrive\Desktop\Flameic\output\playwright\agent-review-workspace\.agentboard\logs\powershell-session-1781864071358-11704-0.log
+                    - button "Open raw log" [ref=e877] [cursor=pointer]:
+                      - img [ref=e878]
+                      - text: Open raw log
+                - generic [ref=e881]:
+                  - button "created hello.txt diff available" [ref=e882] [cursor=pointer]:
+                    - generic [ref=e883]:
+                      - generic [ref=e884]: created
+                      - generic [ref=e885]: hello.txt
+                    - paragraph [ref=e886]: diff available
+                  - generic [ref=e887]:
+                    - button "Open" [ref=e888] [cursor=pointer]:
+                      - img [ref=e889]
+                      - text: Open
+                    - button "Reveal" [ref=e894] [cursor=pointer]:
+                      - img [ref=e895]
+                      - text: Reveal
+                - generic [ref=e897]:
+                  - paragraph [ref=e899]: hello.txt
+                  - code [ref=e901]: "--- /dev/null +++ b/hello.txt @@ -1,0 +1,1 @@ +Hello from AgentBoard review"
+                - generic [ref=e902]:
+                  - button "Accept changes" [ref=e903] [cursor=pointer]:
+                    - img [ref=e904]
+                    - text: Accept changes
+                  - button "Revert changes" [ref=e906] [cursor=pointer]:
+                    - img [ref=e907]
+                    - text: Revert changes
+                - button "Open review folder" [ref=e910] [cursor=pointer]:
+                  - img [ref=e911]
+                  - text: Open review folder
+            - generic [ref=e913]:
+              - paragraph [ref=e914]: Task and generated prompt
+              - paragraph [ref=e915]: Set-Content -LiteralPath hello.txt -Value 'Hello from AgentBoard review'
+            - generic [ref=e916]:
+              - paragraph [ref=e917]: Runtime
+              - generic [ref=e918]:
+                - generic [ref=e919]: Session
+                - generic [ref=e920]: session-1781864071358-11704-0
+              - generic [ref=e921]:
+                - generic [ref=e922]: Log
+                - generic [ref=e923]: C:\Users\ayush\OneDrive\Desktop\Flameic\output\playwright\agent-review-workspace\.agentboard\logs\powershell-session-1781864071358-11704-0.log
+              - generic [ref=e924]:
+                - button "Open log" [ref=e925] [cursor=pointer]:
+                  - img [ref=e926]
+                  - text: Open log
+                - button "Stop" [disabled] [ref=e928] [cursor=pointer]:
+                  - img [ref=e929]
+                  - text: Stop
+      - generic [ref=e931]:
+        - generic [ref=e932]:
+          - generic [ref=e933]:
+            - img [ref=e934]
+            - generic [ref=e936]: Terminal
+            - generic [ref=e939]: PowerShell · completed
+          - generic [ref=e940]:
+            - button "Open logs folder" [ref=e941] [cursor=pointer]:
+              - img [ref=e942]
+              - text: Open folder
+            - button "Clear completed session history" [ref=e944] [cursor=pointer]:
+              - img [ref=e945]
+              - text: Clear history
+            - button "Expand terminal panel" [ref=e948] [cursor=pointer]:
+              - img [ref=e949]
+              - text: Expand
+            - button "Collapse terminal" [ref=e954] [cursor=pointer]:
+              - img [ref=e955]
+              - text: Collapse
+        - generic [ref=e957]:
+          - complementary [ref=e958]:
+            - button "PowerShell 19/6/2026, 3:44:31 pm" [ref=e959] [cursor=pointer]:
+              - generic [ref=e962]: PowerShell
+              - generic [ref=e963]: 19/6/2026, 3:44:31 pm
+          - generic [ref=e965]: "[system] Spawned `C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe` with pid 17420"
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e966]:
+        - img [ref=e968]
+        - generic [ref=e970]:
+          - generic [ref=e971]: Agent session completed
+          - generic [ref=e972]: Session session-1781864071358-11704-0
+      - listitem [ref=e973]:
+        - img [ref=e975]
+        - generic [ref=e977]:
+          - generic [ref=e978]: Agent deployed
+          - generic [ref=e979]: agent-review-workspace
+      - listitem [ref=e980]:
+        - img [ref=e982]
+        - generic [ref=e984]:
+          - generic [ref=e985]: Agent session started
+          - generic [ref=e986]: C:\Users\ayush\OneDrive\Desktop\Flameic\output\playwright\agent-review-workspace\.agentboard\logs\powershell-session-1781864071358-11704-0.log
