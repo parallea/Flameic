@@ -2,7 +2,7 @@
 
 AgentBoard is a Windows desktop control plane for supervising local coding agents across project folders.
 
-It preserves the dark Rocket-generated dashboard style from the original AgentFlow frontend, but the runnable app is now a Tauri + React + TypeScript desktop application with a Rust backend for filesystem, process, Git, scanner, and log operations.
+It lets you run multiple agents simuntaniously over a each file such that you can ask one agent to design while other to build a backend for the product simuntaniously. You can also identify the number of pipleines used in the project and see weather they are working or not such that you can also deploy an agent in the pipeline to fix that part which enable more efficient solution other than traditional where you deploy an agent to whole project and use much more tokens to read not so important parts of the projects.
 
 ## Prerequisites
 
